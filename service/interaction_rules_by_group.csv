@@ -1,0 +1,47 @@
+rule,class,confidence,group
+first_lose_odds_of24h > 2.27 AND draw_odds_of24h_up_num <= 1.50 AND win_odds_of24h_change_num_rank <= 1.50,2.0,0.5,8
+first_lose_odds_of24h > 2.27 AND draw_odds_of24h_up_num <= 1.50 AND win_odds_of24h_change_num_rank > 1.50,0.0,0.36,8
+first_lose_odds_of24h > 2.27 AND draw_odds_of24h_up_num > 1.50,2.0,0.6481481481481481,8
+first_win_odds_of24h <= 2.25 AND lose_odds_of24h_change_num <= 3.50,2.0,0.40384615384615385,9
+first_win_odds_of24h <= 2.25 AND lose_odds_of24h_change_num > 3.50,2.0,0.6111111111111112,9
+lose_odds_of24h_delta <= 0.09 AND win_odds_of24h_stable_num <= 0.50,0.0,0.5660377358490566,10
+lose_odds_of24h_delta <= 0.09 AND win_odds_of24h_stable_num > 0.50,2.0,0.41509433962264153,10
+first_draw_odds_of24h <= 3.93 AND draw_odds_of24h_delta <= -0.03,1.0,0.4411764705882353,12
+first_draw_odds_of24h <= 3.93 AND draw_odds_of24h_delta > -0.03 AND first_win_odds_of24h <= 2.20,2.0,0.43157894736842106,12
+first_draw_odds_of24h <= 3.93 AND draw_odds_of24h_delta > -0.03 AND first_win_odds_of24h > 2.20,0.0,0.46551724137931033,12
+first_win_odds_of24h > 1.92 AND last_lose_odds_of24h <= 2.29,0.0,0.6428571428571429,14
+first_win_odds_of24h > 1.92 AND last_lose_odds_of24h > 2.29,2.0,0.36764705882352944,14
+first_lose_odds_of24h <= 3.38 AND win_odds_of24h_change_num <= 3.50,2.0,0.42592592592592593,19
+first_lose_odds_of24h <= 3.38 AND win_odds_of24h_change_num > 3.50,0.0,0.45614035087719296,19
+last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h <= 3.07,2.0,0.390625,23
+last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h > 3.07 AND lose_odds_of24h_stable_num_rank <= 2.50,2.0,0.5692307692307692,23
+last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h > 3.07 AND lose_odds_of24h_stable_num_rank > 2.50,2.0,0.6721311475409836,23
+last_lose_odds_of24h <= 2.25 AND first_win_odds_of24h <= 4.97,0.0,0.48484848484848486,25
+last_lose_odds_of24h <= 2.25 AND first_win_odds_of24h > 4.97,0.0,0.8400000000000001,25
+last_lose_odds_of24h > 2.25 AND last_draw_odds_of24h <= 3.68 AND win_odds_of24h_delta <= 0.01,1.0,0.4230769230769231,25
+last_lose_odds_of24h > 2.25 AND last_draw_odds_of24h <= 3.68 AND win_odds_of24h_delta > 0.01,0.0,0.4262295081967213,25
+last_lose_odds_of24h > 2.25 AND last_draw_odds_of24h > 3.68 AND win_odds_of24h_delta <= 0.03,2.0,0.6385542168674698,25
+last_lose_odds_of24h > 2.25 AND last_draw_odds_of24h > 3.68 AND win_odds_of24h_delta > 0.03,2.0,0.45454545454545453,25
+first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h <= 2.11,0.0,0.6078431372549019,26
+first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h > 2.11,0.0,0.4492753623188406,26
+first_lose_odds_of24h > 3.12 AND first_draw_odds_of24h <= 3.88,2.0,0.4716981132075472,26
+first_lose_odds_of24h > 3.12 AND first_draw_odds_of24h > 3.88,2.0,0.6666666666666666,26
+first_lose_odds_of24h <= 2.93 AND last_draw_odds_of24h <= 3.57 AND lose_odds_of24h_delta <= 0.06,0.0,0.5740740740740741,27
+first_lose_odds_of24h <= 2.93 AND last_draw_odds_of24h <= 3.57 AND lose_odds_of24h_delta > 0.06,0.0,0.38461538461538464,27
+first_lose_odds_of24h <= 2.93 AND last_draw_odds_of24h > 3.57,0.0,0.5616438356164384,27
+first_lose_odds_of24h > 2.93 AND first_draw_odds_of24h <= 3.68 AND win_odds_of24h_delta <= 0.00,2.0,0.5263157894736842,27
+first_lose_odds_of24h > 2.93 AND first_draw_odds_of24h <= 3.68 AND win_odds_of24h_delta > 0.00,1.0,0.46153846153846156,27
+first_lose_odds_of24h > 2.93 AND first_draw_odds_of24h > 3.68 AND first_draw_odds_of24h <= 4.12,2.0,0.7272727272727273,27
+first_lose_odds_of24h > 2.93 AND first_draw_odds_of24h > 3.68 AND first_draw_odds_of24h > 4.12,2.0,0.8653846153846154,27
+first_lose_odds_of24h <= 2.55 AND draw_odds_of24h_delta <= 0.13,0.0,0.55,33
+first_lose_odds_of24h <= 2.55 AND draw_odds_of24h_delta > 0.13,0.0,0.5901639344262295,33
+first_lose_odds_of24h > 2.55 AND win_odds_of24h_change_num <= 2.50,1.0,0.45679012345679015,33
+first_lose_odds_of24h > 2.55 AND win_odds_of24h_change_num > 2.50 AND lose_odds_of24h_change_num <= 9.50,2.0,0.5303030303030303,33
+first_lose_odds_of24h > 2.55 AND win_odds_of24h_change_num > 2.50 AND lose_odds_of24h_change_num > 9.50,2.0,0.71875,33
+last_win_odds_of24h <= 2.48 AND last_win_odds_of24h <= 1.65 AND win_odds_of24h_final_change <= 0.50,2.0,0.7777777777777778,34
+last_win_odds_of24h <= 2.48 AND last_win_odds_of24h <= 1.65 AND win_odds_of24h_final_change > 0.50,2.0,0.64,34
+last_win_odds_of24h <= 2.48 AND last_win_odds_of24h > 1.65 AND lose_odds_of24h_change_num <= 4.50,1.0,0.45454545454545453,34
+last_win_odds_of24h <= 2.48 AND last_win_odds_of24h > 1.65 AND lose_odds_of24h_change_num > 4.50,2.0,0.5233644859813085,34
+last_win_odds_of24h > 2.48 AND last_lose_odds_of24h <= 2.15 AND first_draw_odds_of24h <= 3.57,0.0,0.58,34
+last_win_odds_of24h > 2.48 AND last_lose_odds_of24h <= 2.15 AND first_draw_odds_of24h > 3.57,0.0,0.7241379310344828,34
+last_win_odds_of24h > 2.48 AND last_lose_odds_of24h > 2.15,0.0,0.41414141414141414,34

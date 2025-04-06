@@ -1,0 +1,119 @@
+group,rule,class,confidence,class_label
+11,first_lose_odds_of24h <= 2.70 AND last_draw_odds_of24h > 3.32,0,0.34210526315789475,负
+25,last_win_odds_of24h > 2.27 AND first_lose_odds_of24h > 1.53 AND last_lose_odds_of24h > 2.08,0,0.35766423357664234,负
+30,last_lose_odds_of24h <= 4.08 AND win_odds_of24h_stable_num <= 1.50,0,0.368421052631579,负
+19,first_lose_odds_of24h <= 3.38 AND lose_odds_of24h_stable_num > 0.50 AND win_odds_of24h_drop_num <= 3.50,0,0.3888888888888889,负
+28,first_win_odds_of24h <= 2.39 AND first_draw_odds_of24h <= 6.30 AND last_draw_odds_of24h <= 3.32,1,0.39285714285714285,平
+21,first_win_odds_of24h > 2.24 AND draw_odds_of24h_drop_num > 1.50,2,0.4,胜
+8,last_win_odds_of24h > 1.73 AND last_lose_odds_of24h > 2.28 AND lose_odds_of24h_stable_num_rank > 1.50,2,0.40707964601769914,胜
+31,first_win_odds_of24h <= 2.28 AND lose_odds_of24h_delta <= 0.04,2,0.41379310344827586,胜
+9,first_win_odds_of24h <= 2.25 AND lose_odds_of24h_delta <= 0.78 AND first_win_odds_of24h <= 1.85,2,0.41379310344827586,胜
+12,first_draw_odds_of24h <= 3.93 AND win_odds_of24h_drop_num <= 6.50 AND lose_odds_of24h_stable_num <= 3.50,1,0.4144736842105263,平
+14,first_win_odds_of24h > 1.92 AND last_draw_odds_of24h <= 3.82 AND lose_odds_of24h_up_num <= 10.50,0,0.4153846153846154,负
+33,last_win_odds_of24h > 2.43 AND first_lose_odds_of24h > 1.89 AND draw_odds_of24h_change_num_rank > 2.50,0,0.4166666666666667,负
+34,last_win_odds_of24h > 2.48 AND last_lose_odds_of24h > 2.15 AND win_odds_of24h_delta <= 0.05,1,0.4186046511627907,平
+26,first_lose_odds_of24h > 3.12 AND last_win_odds_of24h > 1.84,1,0.41935483870967744,平
+24,first_lose_odds_of24h <= 2.95 AND draw_odds_of24h_up_num <= 3.50,2,0.41935483870967744,胜
+10,lose_odds_of24h_delta > 0.09 AND win_odds_of24h_drop_num > 2.50,2,0.41935483870967744,胜
+21,first_win_odds_of24h <= 2.24 AND win_odds_of24h_change_num <= 4.50,1,0.4230769230769231,平
+11,first_lose_odds_of24h > 2.70 AND last_draw_odds_of24h <= 3.38,2,0.425,胜
+42,last_lose_odds_of24h <= 3.57 AND draw_odds_of24h_delta <= 0.06,1,0.42857142857142855,平
+14,first_win_odds_of24h <= 1.92 AND first_win_odds_of24h > 1.45 AND last_win_odds_of24h <= 1.70,1,0.43333333333333335,平
+27,last_win_odds_of24h > 1.84 AND last_lose_odds_of24h > 2.73 AND win_odds_of24h_delta > 0.00,1,0.43529411764705883,平
+23,last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h <= 3.07 AND total_num_of24h > 4.50,2,0.4358974358974359,胜
+33,last_win_odds_of24h <= 2.43 AND first_draw_odds_of24h <= 4.62 AND win_odds_of24h_change_num <= 2.50,1,0.4366197183098592,平
+23,last_win_odds_of24h > 2.76 AND draw_odds_of24h_stable_num_rank > 1.50,0,0.44,负
+17,first_win_odds_of24h > 2.10 AND total_num_of24h > 2.50 AND win_odds_of24h_change_num > 4.50,1,0.44,平
+9,first_win_odds_of24h > 2.25 AND lose_odds_of24h_drop_num > 0.50 AND draw_odds_of24h_change_num > 2.50,0,0.44,负
+12,first_draw_odds_of24h <= 3.93 AND win_odds_of24h_drop_num > 6.50,2,0.4418604651162791,胜
+8,last_win_odds_of24h > 1.73 AND last_lose_odds_of24h <= 2.28 AND lose_odds_of24h_change_num > 1.50,0,0.4482758620689655,负
+10,lose_odds_of24h_delta <= 0.09 AND first_lose_odds_of24h > 2.69,2,0.45652173913043476,胜
+27,last_win_odds_of24h > 1.84 AND last_lose_odds_of24h > 2.73 AND win_odds_of24h_delta <= 0.00,2,0.4594594594594595,胜
+24,first_lose_odds_of24h <= 2.95 AND draw_odds_of24h_up_num > 3.50,0,0.46808510638297873,负
+25,last_win_odds_of24h <= 2.27 AND last_draw_odds_of24h <= 6.95 AND draw_odds_of24h_stable_num <= 4.50,2,0.46938775510204084,胜
+27,last_win_odds_of24h > 1.84 AND last_lose_odds_of24h <= 2.73 AND first_lose_odds_of24h <= 1.70,1,0.47058823529411764,平
+47,last_lose_odds_of24h > 2.81 AND first_lose_odds_of24h <= 3.52,2,0.47368421052631576,胜
+28,first_win_odds_of24h > 2.39 AND last_win_odds_of24h <= 4.38 AND first_draw_odds_of24h <= 3.18,0,0.48,负
+26,first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h > 2.11 AND first_draw_odds_of24h > 3.43,2,0.48,胜
+23,last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h <= 3.07 AND total_num_of24h <= 4.50,0,0.48,负
+28,first_win_odds_of24h > 2.39 AND last_win_odds_of24h <= 4.38 AND first_draw_odds_of24h > 3.18,1,0.4838709677419355,平
+9,first_win_odds_of24h > 2.25 AND lose_odds_of24h_drop_num <= 0.50,2,0.4857142857142857,胜
+33,last_win_odds_of24h > 2.43 AND first_lose_odds_of24h > 1.89 AND draw_odds_of24h_change_num_rank <= 2.50,0,0.4864864864864865,负
+19,first_lose_odds_of24h <= 3.38 AND lose_odds_of24h_stable_num <= 0.50,2,0.4888888888888889,胜
+34,last_win_odds_of24h <= 2.48 AND last_win_odds_of24h > 1.65 AND lose_odds_of24h_delta <= 0.39,2,0.4921875,胜
+47,last_lose_odds_of24h <= 2.81 AND lose_odds_of24h_change_num > 3.50,1,0.5,平
+47,last_lose_odds_of24h > 2.81 AND first_lose_odds_of24h > 3.52,2,0.5,胜
+34,last_win_odds_of24h > 2.48 AND last_lose_odds_of24h <= 2.15 AND lose_odds_of24h_up_num <= 1.50,0,0.5,负
+34,last_win_odds_of24h > 2.48 AND last_lose_odds_of24h > 2.15 AND win_odds_of24h_delta > 0.05,0,0.5,负
+24,first_lose_odds_of24h > 2.95 AND draw_odds_of24h_drop_num <= 6.50 AND draw_odds_of24h_change_num_rank <= 2.50,2,0.5,胜
+21,first_win_odds_of24h > 2.24 AND draw_odds_of24h_drop_num <= 1.50,0,0.5,负
+25,last_win_odds_of24h > 2.27 AND first_lose_odds_of24h > 1.53 AND last_lose_odds_of24h <= 2.08,0,0.5125,负
+43,first_lose_odds_of24h > 1.96 AND last_lose_odds_of24h <= 8.10 AND first_draw_odds_of24h <= 3.32,1,0.5142857142857143,平
+43,first_lose_odds_of24h > 1.96 AND last_lose_odds_of24h <= 8.10 AND first_draw_odds_of24h > 3.32,2,0.5161290322580645,胜
+26,first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h > 2.11 AND first_draw_odds_of24h <= 3.43,0,0.5227272727272727,负
+8,last_win_odds_of24h > 1.73 AND last_lose_odds_of24h > 2.28 AND lose_odds_of24h_stable_num_rank <= 1.50,2,0.5294117647058824,胜
+27,last_win_odds_of24h <= 1.84 AND first_draw_odds_of24h <= 3.68,2,0.5333333333333333,胜
+19,first_lose_odds_of24h > 3.38 AND draw_odds_of24h_stable_num > 2.50,2,0.5357142857142857,胜
+26,first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h <= 2.11 AND win_odds_of24h_stable_num <= 2.50,0,0.5384615384615384,负
+17,first_win_odds_of24h > 2.10 AND total_num_of24h > 2.50 AND win_odds_of24h_change_num <= 4.50,2,0.5384615384615384,胜
+33,last_win_odds_of24h <= 2.43 AND first_draw_odds_of24h <= 4.62 AND win_odds_of24h_change_num > 2.50,2,0.5393258426966292,胜
+34,last_win_odds_of24h <= 2.48 AND last_win_odds_of24h > 1.65 AND lose_odds_of24h_delta > 0.39,1,0.5588235294117647,平
+10,lose_odds_of24h_delta <= 0.09 AND first_lose_odds_of24h <= 2.69 AND total_num_of24h > 3.50,0,0.5588235294117647,负
+56,first_lose_odds_of24h > 2.77 AND draw_odds_of24h_change_num <= 10.50,2,0.5714285714285714,胜
+27,last_win_odds_of24h > 1.84 AND last_lose_odds_of24h <= 2.73 AND first_lose_odds_of24h > 1.70,0,0.576271186440678,负
+12,first_draw_odds_of24h <= 3.93 AND win_odds_of24h_drop_num <= 6.50 AND lose_odds_of24h_stable_num > 3.50,2,0.5769230769230769,胜
+34,last_win_odds_of24h <= 2.48 AND last_win_odds_of24h <= 1.65 AND win_odds_of24h_delta > 0.02,2,0.5862068965517241,胜
+26,first_lose_odds_of24h > 3.12 AND last_win_odds_of24h <= 1.84 AND last_win_odds_of24h <= 1.62,2,0.5901639344262295,胜
+10,lose_odds_of24h_delta <= 0.09 AND first_lose_odds_of24h <= 2.69 AND total_num_of24h <= 3.50,0,0.5925925925925926,负
+23,last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h > 3.07 AND first_win_odds_of24h > 1.45,2,0.5943396226415094,胜
+42,last_lose_odds_of24h > 3.57 AND lose_odds_of24h_stable_num <= 2.50,2,0.6,胜
+19,first_lose_odds_of24h <= 3.38 AND lose_odds_of24h_stable_num > 0.50 AND win_odds_of24h_drop_num > 3.50,0,0.6,负
+9,first_win_odds_of24h <= 2.25 AND lose_odds_of24h_delta <= 0.78 AND first_win_odds_of24h > 1.85,2,0.6,胜
+8,last_win_odds_of24h > 1.73 AND last_lose_odds_of24h <= 2.28 AND lose_odds_of24h_change_num <= 1.50,0,0.6,负
+42,last_lose_odds_of24h <= 3.57 AND draw_odds_of24h_delta > 0.06,0,0.6153846153846154,负
+11,first_lose_odds_of24h <= 2.70 AND last_draw_odds_of24h <= 3.32,0,0.6153846153846154,负
+12,first_draw_odds_of24h > 3.93 AND draw_odds_of24h_change_num <= 7.50,2,0.6190476190476191,胜
+33,last_win_odds_of24h > 2.43 AND first_lose_odds_of24h <= 1.89 AND draw_odds_of24h_delta <= 0.18,0,0.625,负
+35,first_lose_odds_of24h > 2.90 AND win_odds_of24h_stable_num <= 2.50,2,0.64,胜
+30,last_lose_odds_of24h > 4.08 AND draw_odds_of24h_delta <= 0.13,2,0.64,胜
+28,first_win_odds_of24h <= 2.39 AND first_draw_odds_of24h <= 6.30 AND last_draw_odds_of24h > 3.32,2,0.6515151515151515,胜
+25,last_win_odds_of24h <= 2.27 AND last_draw_odds_of24h <= 6.95 AND draw_odds_of24h_stable_num > 4.50,2,0.6527777777777778,胜
+47,last_lose_odds_of24h <= 2.81 AND lose_odds_of24h_change_num <= 3.50,0,0.6578947368421053,负
+14,first_win_odds_of24h > 1.92 AND last_draw_odds_of24h <= 3.82 AND lose_odds_of24h_up_num > 10.50,2,0.6666666666666666,胜
+17,first_win_odds_of24h > 2.10 AND total_num_of24h <= 2.50,0,0.6666666666666667,负
+31,first_win_odds_of24h <= 2.28 AND lose_odds_of24h_delta > 0.04,2,0.6785714285714286,胜
+26,first_lose_odds_of24h <= 3.12 AND first_lose_odds_of24h <= 2.11 AND win_odds_of24h_stable_num > 2.50,0,0.68,负
+10,lose_odds_of24h_delta > 0.09 AND win_odds_of24h_drop_num <= 2.50 AND first_win_odds_of24h <= 1.68,2,0.68,胜
+28,first_win_odds_of24h > 2.39 AND last_win_odds_of24h > 4.38,0,0.6808510638297872,负
+11,first_lose_odds_of24h > 2.70 AND last_draw_odds_of24h > 3.38,2,0.6829268292682927,胜
+33,last_win_odds_of24h <= 2.43 AND first_draw_odds_of24h > 4.62 AND draw_odds_of24h_change_num <= 4.50,2,0.6896551724137931,胜
+23,last_win_odds_of24h > 2.76 AND draw_odds_of24h_stable_num_rank <= 1.50,0,0.7027027027027027,负
+27,last_win_odds_of24h <= 1.84 AND first_draw_odds_of24h > 3.68 AND lose_odds_of24h_change_num > 14.50,2,0.7096774193548387,胜
+35,first_lose_odds_of24h > 2.90 AND win_odds_of24h_stable_num > 2.50,2,0.72,胜
+9,first_win_odds_of24h > 2.25 AND lose_odds_of24h_drop_num > 0.50 AND draw_odds_of24h_change_num <= 2.50,0,0.72,负
+24,first_lose_odds_of24h > 2.95 AND draw_odds_of24h_drop_num <= 6.50 AND draw_odds_of24h_change_num_rank > 2.50,2,0.7241379310344828,胜
+21,first_win_odds_of24h <= 2.24 AND win_odds_of24h_change_num > 4.50,2,0.7241379310344828,胜
+34,last_win_odds_of24h > 2.48 AND last_lose_odds_of24h <= 2.15 AND lose_odds_of24h_up_num > 1.50,0,0.7428571428571429,负
+19,first_lose_odds_of24h > 3.38 AND draw_odds_of24h_stable_num <= 2.50,2,0.75,胜
+12,first_draw_odds_of24h > 3.93 AND draw_odds_of24h_change_num > 7.50,2,0.7560975609756098,胜
+30,last_lose_odds_of24h <= 4.08 AND win_odds_of24h_stable_num > 1.50,0,0.7567567567567568,负
+34,last_win_odds_of24h <= 2.48 AND last_win_odds_of24h <= 1.65 AND win_odds_of24h_delta <= 0.02,2,0.7640449438202247,胜
+33,last_win_odds_of24h > 2.43 AND first_lose_odds_of24h <= 1.89 AND draw_odds_of24h_delta > 0.18,0,0.7666666666666667,负
+26,first_lose_odds_of24h > 3.12 AND last_win_odds_of24h <= 1.84 AND last_win_odds_of24h > 1.62,2,0.7692307692307693,胜
+9,first_win_odds_of24h <= 2.25 AND lose_odds_of24h_delta > 0.78,2,0.7777777777777778,胜
+14,first_win_odds_of24h > 1.92 AND last_draw_odds_of24h > 3.82,0,0.7878787878787878,负
+14,first_win_odds_of24h <= 1.92 AND first_win_odds_of24h <= 1.45 AND last_lose_odds_of24h <= 9.05,2,0.8,胜
+23,last_win_odds_of24h <= 2.76 AND last_lose_odds_of24h > 3.07 AND first_win_odds_of24h <= 1.45,2,0.8076923076923077,胜
+14,first_win_odds_of24h <= 1.92 AND first_win_odds_of24h > 1.45 AND last_win_odds_of24h > 1.70,2,0.8076923076923077,胜
+10,lose_odds_of24h_delta > 0.09 AND win_odds_of24h_drop_num <= 2.50 AND first_win_odds_of24h > 1.68,2,0.8076923076923077,胜
+30,last_lose_odds_of24h > 4.08 AND draw_odds_of24h_delta > 0.13,2,0.8378378378378378,胜
+24,first_lose_odds_of24h > 2.95 AND draw_odds_of24h_drop_num > 6.50,2,0.8518518518518519,胜
+27,last_win_odds_of24h <= 1.84 AND first_draw_odds_of24h > 3.68 AND lose_odds_of24h_change_num <= 14.50,2,0.8736842105263158,胜
+25,last_win_odds_of24h > 2.27 AND first_lose_odds_of24h <= 1.53,0,0.8775510204081634,负
+42,last_lose_odds_of24h > 3.57 AND lose_odds_of24h_stable_num > 2.50,2,0.8888888888888888,胜
+43,first_lose_odds_of24h > 1.96 AND last_lose_odds_of24h > 8.10,2,0.896551724137931,胜
+33,last_win_odds_of24h <= 2.43 AND first_draw_odds_of24h > 4.62 AND draw_odds_of24h_change_num > 4.50,2,0.9166666666666666,胜
+28,first_win_odds_of24h <= 2.39 AND first_draw_odds_of24h > 6.30,2,0.92,胜
+14,first_win_odds_of24h <= 1.92 AND first_win_odds_of24h <= 1.45 AND last_lose_odds_of24h > 9.05,2,0.9285714285714286,胜
+56,first_lose_odds_of24h > 2.77 AND draw_odds_of24h_change_num > 10.50,2,0.9629629629629629,胜
+25,last_win_odds_of24h <= 2.27 AND last_draw_odds_of24h > 6.95,2,1.0,胜
