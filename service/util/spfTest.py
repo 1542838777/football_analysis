@@ -11,7 +11,7 @@ from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from itertools import combinations
-
+#呢哇tes
 
 # 加载数据并按时间排序
 def getOriginData(guess_type):
