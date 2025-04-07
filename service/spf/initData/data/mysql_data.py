@@ -10,6 +10,7 @@ def load_europe_odds_not_handicap_data():
     query = """
     
    
+
 SELECT bookmaker_id,
        o.match_id,
        first_win_sp,
@@ -35,11 +36,15 @@ FROM europe_odds o
 WHERE o.first_handicap = 0
   and first_win_sp >= 1.13
   and first_lose_sp >= 1.12
-  # and bet_time <= '2025-03-20'
+# and bet_time <= '2025-03-20'
+  and bookmaker_id in (
+    3,
+        11,99,63,75,64,39,84,91,68,79,22,32,6,24,126,82,161,18,74,57,192,93,72,47,25,80,17,127,9,106,48,115,42,121,130,70,60,1000,
+110
 
-  # and bookmaker_id in (1000, 57, 25, 11)
+    )
+order by r.bet_time, match_id
 
-order by r.bet_time ,match_id
     """
     raw_df = pd.read_sql(query, engine)
 

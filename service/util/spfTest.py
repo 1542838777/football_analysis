@@ -145,7 +145,7 @@ def add_institution_discrepancy_colum(match_level_df):
         print(f"警告：以下特征列未生成: {missing_columns}")
     return match_level_df
 
-def _process_single_match(group):
+def _process_single_match(group,agency_pairs):
     """处理单个比赛的所有赔率数据，返回一行特征"""
     match_id = group.name
     features = {'match_id': match_id}
@@ -209,7 +209,7 @@ def _process_single_match(group):
         features[sp_ratio_target_key] = features[kelly_key] / features[outcome_sp_key]
 
         # 两者赔率比率
-        both_outcome_aver_sp_devision_target_key = f'{outcome}_both_outcome_aver_sp_devision'
+        both_outcome_aver_sp_devision_target_key = f'win_{outcome}_both_outcome_aver_sp_devision'
         win_outcome_aver_sp_target_key = 'first_win_sp_mean'
         if (outcome == 'win'):
             continue
@@ -224,18 +224,14 @@ def _process_single_match(group):
                 features[win_outcome_aver_sp_target_key] - features[cur_outcome_aver_sp_target_key]
         )
     # 将 calculate_odds_difference(group) 合并 到 features
-    features.update(calculate_odds_difference(group))
+    features.update(calculate_odds_difference(group,agency_pairs))
 
     return pd.Series(features)
 
 
-def calculate_odds_difference(group):
+def calculate_odds_difference(group,agency_pairs):
     features = {}
-    # 获取所有唯一的机构ID
-    unique_agencies = group['bookmaker_id'].unique()
     # 生成两两组合
-    agency_pairs = list(combinations(unique_agencies, 2))
-    
     for agency1, agency2 in agency_pairs:
         suffix = f'{agency1}_{agency2}'
         odds1 = group[group['bookmaker_id'] == agency1][
@@ -261,9 +257,12 @@ def calculate_odds_difference(group):
 def create_match_level_future_by_match_group(df):
     """保留所有原有特征，增加关键新特征，保持数据顺序"""
 
-
+    unique_agencies = df['bookmaker_id'].unique()
+    unique_agencies = [1000, 11, 57]#todo 删除
+    # 生成两两组合
+    agency_pairs = list(combinations(unique_agencies, 2))
     # 调用 _process_single_match，排除分组列
-    match_level_df = df.groupby('match_id', sort=False, group_keys=False).apply(_process_single_match)
+    match_level_df = df.groupby('match_id', sort=False, group_keys=False).apply(_process_single_match,agency_pairs)
 
     # 保持原始顺序
     match_level_df = match_level_df.reindex(df['match_id'].unique())
@@ -319,7 +318,6 @@ def create_features(df, useless_cols=None):
 # 数据预处理：时序分割，特征处理，标准化
 def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=0.2):
     """数据预处理：时序分割，特征处理，标准化"""
-
     
     # 时序分割
     split_idx = int(len(df) * (1 - test_size))
@@ -330,6 +328,9 @@ def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=
     X_train = create_features(train_df, useless_cols)
     X_test = create_features(test_df, useless_cols)
     
+    # 保存特征名称
+    feature_names = X_train.columns.tolist()
+    
     # 标签处理
     y_train = train_df[target_column]
     y_train, label_map = map_labels(train_df[target_column], guess_type)
@@ -337,10 +338,18 @@ def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=
     
     # 标准化
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    X_train_scaled = pd.DataFrame(
+        scaler.fit_transform(X_train),
+        columns=feature_names,
+        index=X_train.index
+    )
+    X_test_scaled = pd.DataFrame(
+        scaler.transform(X_test),
+        columns=feature_names,
+        index=X_test.index
+    )
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, feature_names
 
 
 # 类别权重计算
@@ -374,11 +383,11 @@ def get_param_grids():
         },
         'LightGBM': {
             'num_leaves': [31, 50],
-            'learning_rate': [0.01, 0.05],
+            'learning_rate': [0.01, 0.03],
             'n_estimators': [100]
         },
         'RandomForest': {
-            'n_estimators': [100, 200],
+            'n_estimators': [50,100],
             'max_depth': [10, 15, 20],
             'min_samples_split': [2, 5]
         },
@@ -391,21 +400,62 @@ def get_param_grids():
     return param_grids
 
 
-# 训练并调优模型
-def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models):
+def analyze_feature_importance(model, X_train, model_name, feature_names=None):
+    """分析并打印模型的特征重要性
+    
+    Args:
+        model: 训练好的模型
+        X_train: 训练数据
+        model_name: 模型名称
+        feature_names: 特征名称列表
+    """
+    print(f"\n{model_name} 模型的特征重要性（按重要性降序排列）：")
+    
+    # 获取特征名称
+    if feature_names is None:
+        feature_names = X_train.columns if hasattr(X_train, 'columns') else [f'feature_{i}' for i in range(X_train.shape[1])]
+    
+    # 根据不同模型类型获取特征重要性
+    if hasattr(model, 'feature_importances_'):
+        # 适用于XGBoost、LightGBM、RandomForest等
+        importances = model.feature_importances_
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importances
+        }).sort_values('importance', ascending=False)
+        print(importance_df.to_string())
+    elif hasattr(model, 'coef_'):
+        # 适用于SVM等线性模型
+        coef = model.coef_
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'coefficient': coef[0]  # 对于多分类，可能需要处理多个系数
+        }).sort_values('coefficient', ascending=False)
+        print(importance_df.to_string())
+    else:
+        print("该模型不支持特征重要性分析")
+    
+    return importance_df if 'importance_df' in locals() else None
+
+
+def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models, feature_names=None):
     best_models = {}
     for model_name, model in models.items():
         print(f"\n正在调参 {model_name} ...")
         grid_search = GridSearchCV(
             estimator=model,
             param_grid=param_grids[model_name],
-            cv=TimeSeriesSplit(n_splits=5),
+            cv=TimeSeriesSplit(n_splits=3),
             scoring='balanced_accuracy',
-            n_jobs=-1,
+            n_jobs=2,
             verbose=2
         )
 
-        grid_search.fit(X_train, y_train)
+        # 转换数据类型为float32以减少内存使用
+        X_train_32 = X_train.astype(np.float32)
+        X_test_32 = X_test.astype(np.float32)
+        
+        grid_search.fit(X_train_32, y_train)
         best_models[model_name] = {
             'best_estimator': grid_search.best_estimator_,
             'best_params': grid_search.best_params_,
@@ -413,7 +463,7 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
         }
 
         # 模型评估
-        y_pred = grid_search.best_estimator_.predict(X_test)
+        y_pred = grid_search.best_estimator_.predict(X_test_32)
         print(f"\n{model_name} 模型的最佳参数组合：")
         print(grid_search.best_params_)
         print(f"\n{model_name} 模型的测试集表现：")
@@ -421,15 +471,18 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
         target_names = np.unique(y_train)
         target_names = [str(c) for c in np.unique(target_names)]
         print(classification_report(y_test, y_pred, target_names=target_names))
+
         # 写一个 返回最近N场的预测准确率 的函数
         for n in [20, 150]:
             acc = get_recent_n_accuracy(
                 grid_search.best_estimator_,
-                X_test,
+                X_test_32,
                 y_test,
                 n
             )
             print(f"\n{model_name}模型最近{n}场平衡准确率: {acc:.2%}")
+        # 分析特征重要性
+        analyze_feature_importance(grid_search.best_estimator_, X_train_32, model_name, feature_names)
 
     return best_models
 
@@ -518,11 +571,8 @@ if __name__ == '__main__':
     y_column, guess_type, useless_cols, match_level_df = getSelf()
 
     # 数据预处理
-    X_train_scaled, X_test_scaled, y_train, y_test, scaler = preprocess_data(
+    X_train_scaled, X_test_scaled, y_train, y_test, scaler, feature_names = preprocess_data(
         match_level_df, y_column, guess_type, useless_cols)
-
-    # 获取特征名称
-    feature_names = create_features(match_level_df, useless_cols).columns.tolist()
 
     # 类别权重计算
     class_weights = compute_class_weights(y_train)
@@ -532,7 +582,7 @@ if __name__ == '__main__':
     param_grids = get_param_grids()
 
     # 训练并评估模型
-    best_models = train_and_evaluate_models(X_train_scaled, y_train, X_test_scaled, y_test, param_grids, models)
+    best_models = train_and_evaluate_models(X_train_scaled, y_train, X_test_scaled, y_test, param_grids, models, feature_names)
 
     # 特征重要性可视化
     plot_feature_importance(best_models, feature_names)
