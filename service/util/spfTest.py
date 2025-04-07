@@ -375,21 +375,21 @@ def get_models():
 def get_param_grids():
     param_grids = {
         'XGBoost': {
-            'max_depth': [3, 5],
-            'learning_rate': [0.02, 0.04],
-            'subsample': [0.6, 0.8],
-            'colsample_bytree': [0.8, 1.0],
-            'n_estimators': [100]
+            'max_depth': [3 ],#todo[2,4]
+            'learning_rate': [0.02 ],#todo[0.01,0.03]
+            'subsample': [ 0.8],#todo [0.7,0.9]
+            'colsample_bytree': [  1.0],#todo[0.9,1.1]
+            'n_estimators': [100]#todo[50,125]
         },
         'LightGBM': {
-            'num_leaves': [31, 50],
-            'learning_rate': [0.01, 0.03],
-            'n_estimators': [100]
+            'num_leaves': [31],#todo[22,40]
+            'learning_rate': [0.02, 0.04],
+            'n_estimators': [100]#todo [50,125]
         },
         'RandomForest': {
-            'n_estimators': [50,100],
-            'max_depth': [10, 15, 20],
-            'min_samples_split': [2, 5]
+            'n_estimators': [ 100],#todo[75,125]
+            'max_depth': [10, ],#todo [5,13]
+            'min_samples_split': [2, 5]#todo[1,3]
         },
         'SVM': {
             'C': [0.1, 1, 10],
