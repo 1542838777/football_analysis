@@ -11,6 +11,9 @@ from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from itertools import combinations
+from sklearn.ensemble import VotingClassifier
+from imblearn.over_sampling import SMOTE
+from sklearn.feature_selection import SelectFromModel
 #呢哇tes
 
 # 加载数据并按时间排序
@@ -191,7 +194,7 @@ def _process_single_match(group,agency_pairs):
                 lambda x: 1 if x == target else 0).sum()
 
     # 重点机构特征
-    key_bookmakers = [1000, 11, 57]  # 定义重点机构ID
+    key_bookmakers = [82,39,6,9,64,1000,39,11,57]  # 定义重点机构ID
     for bid in key_bookmakers:
         agency_data = group[group['bookmaker_id'] == bid]
         for outcome in ['win', 'draw', 'lose']:
@@ -257,8 +260,11 @@ def calculate_odds_difference(group,agency_pairs):
 def create_match_level_future_by_match_group(df):
     """保留所有原有特征，增加关键新特征，保持数据顺序"""
 
-    unique_agencies = df['bookmaker_id'].unique()
-    unique_agencies = [1000, 11, 57]#todo 删除
+    unique_agencies = [110,3,82,6,64,9,57,106,39,84,1000]
+    unique_agencies = [82,39,110,3,84,6,64,9,57,106,39,84,1000]
+    unique_agencies = [6,9,39,84,110,64,1000]
+    unique_agencies = [ 64,39, 84]
+    uiniqyue_agencies = [82,39,6,9,64]
     # 生成两两组合
     agency_pairs = list(combinations(unique_agencies, 2))
     # 调用 _process_single_match，排除分组列
@@ -336,20 +342,40 @@ def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=
     y_train, label_map = map_labels(train_df[target_column], guess_type)
     y_test = np.array([label_map[str(label)] for label in test_df[target_column]])
     
+    # 处理NaN值
+    from sklearn.impute import SimpleImputer
+    imputer = SimpleImputer(strategy='mean')
+    X_train_imputed = imputer.fit_transform(X_train)
+    X_test_imputed = imputer.transform(X_test)
+    
     # 标准化
     scaler = StandardScaler()
     X_train_scaled = pd.DataFrame(
-        scaler.fit_transform(X_train),
+        scaler.fit_transform(X_train_imputed),
         columns=feature_names,
         index=X_train.index
     )
     X_test_scaled = pd.DataFrame(
-        scaler.transform(X_test),
+        scaler.transform(X_test_imputed),
         columns=feature_names,
         index=X_test.index
     )
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, feature_names
+    # 使用SMOTE处理类别不平衡
+    smote = SMOTE(random_state=42)
+    X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+    
+    # 特征选择
+    selector = SelectFromModel(estimator=RandomForestClassifier(n_estimators=100, random_state=42), max_features=30)
+    X_train_selected = selector.fit_transform(X_train_balanced, y_train_balanced)
+    X_test_selected = selector.transform(X_test_scaled)
+    
+    # 获取选择的特征名称
+    selected_feature_names = [feature_names[i] for i in selector.get_support(indices=True)]
+    
+    return (pd.DataFrame(X_train_selected, columns=selected_feature_names, index=X_train_balanced.index),
+            pd.DataFrame(X_test_selected, columns=selected_feature_names, index=X_test_scaled.index),
+            y_train_balanced, y_test, scaler, selected_feature_names)
 
 
 # 类别权重计算
@@ -363,10 +389,25 @@ def compute_class_weights(y_train):
 # 定义多个模型
 def get_models():
     models = {
-        'XGBoost': XGBClassifier(objective='multi:softprob', eval_metric='mlogloss', use_label_encoder=False),
-        'LightGBM': LGBMClassifier(objective='multiclass', metric='multi_logloss'),
-        'RandomForest': RandomForestClassifier(),
-        'SVM': SVC(probability=True)  # 这里需要设置probability=True来支持概率输出
+        'XGBoost': XGBClassifier(
+            objective='multi:softprob',
+            eval_metric='mlogloss',
+            use_label_encoder=False,
+            scale_pos_weight=1.5  # 增加少数类别的权重
+        ),
+        'LightGBM': LGBMClassifier(
+            objective='multiclass',
+            metric='multi_logloss',
+            class_weight='balanced'  # 使用平衡的类别权重
+        ),
+        'RandomForest': RandomForestClassifier(
+            class_weight='balanced'  # 使用平衡的类别权重
+        ),
+        'SVM': SVC(
+            probability=True,
+            kernel='linear',
+            class_weight='balanced'  # 使用平衡的类别权重
+        )
     }
     return models
 
@@ -375,26 +416,26 @@ def get_models():
 def get_param_grids():
     param_grids = {
         'XGBoost': {
-            'max_depth': [3 ],#todo[2,4]
-            'learning_rate': [0.02 ],#todo[0.01,0.03]
-            'subsample': [ 0.8],#todo [0.7,0.9]
-            'colsample_bytree': [  1.0],#todo[0.9,1.1]
-            'n_estimators': [100]#todo[50,125]
+            'max_depth': [ 3],#ok
+            'learning_rate': [ 0.04],#todo[0.01,0.03] ok
+            'subsample': [0.8 ],#ok
+            'colsample_bytree':[  1.0 ],#todo[0.8,0.9,1.1]ok
+            'n_estimators': [25]#todo[50,125]#ok
         },
         'LightGBM': {
-            'num_leaves': [31],#todo[22,40]
-            'learning_rate': [0.02, 0.04],
-            'n_estimators': [100]#todo [50,125]
+            'num_leaves': [18],#todo[22,40]#ok
+            'learning_rate': [0.03],# [0.02, 0.04]#ok
+            'n_estimators': [100]#todo [50,125]#ok
         },
         'RandomForest': {
-            'n_estimators': [ 100],#todo[75,125]
-            'max_depth': [10, ],#todo [5,13]
-            'min_samples_split': [2, 5]#todo[1,3]
+            'n_estimators': [150],#todo[75,125] 小于200 ok
+            'max_depth': [7],#todo [3,5,10] 小于10 大于5
+            'min_samples_split': [4] #todo[1,3]
         },
         'SVM': {
-            'C': [0.1, 1, 10],
-            'kernel': ['linear', 'rbf'],
-            'gamma': ['scale', 'auto']
+            'C': [0.2],#大于0.1 小于0.5
+            'kernel': ['linear'],#ok
+            'gamma': ['scale']#ok
         }
     }
     return param_grids
@@ -440,6 +481,8 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
 
 def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models, feature_names=None):
     best_models = {}
+    estimators = []  # 用于存储所有训练好的模型
+    
     for model_name, model in models.items():
         print(f"\n正在调参 {model_name} ...")
         grid_search = GridSearchCV(
@@ -461,6 +504,9 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
             'best_params': grid_search.best_params_,
             'best_score': grid_search.best_score_
         }
+        
+        # 将训练好的模型添加到estimators列表
+        estimators.append((model_name, grid_search.best_estimator_))
 
         # 模型评估
         y_pred = grid_search.best_estimator_.predict(X_test_32)
@@ -471,6 +517,9 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
         target_names = np.unique(y_train)
         target_names = [str(c) for c in np.unique(target_names)]
         print(classification_report(y_test, y_pred, target_names=target_names))
+        
+        # 分析特征重要性
+        analyze_feature_importance(grid_search.best_estimator_, X_train_32, model_name, feature_names)
 
         # 写一个 返回最近N场的预测准确率 的函数
         for n in [20, 150]:
@@ -481,9 +530,31 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
                 n
             )
             print(f"\n{model_name}模型最近{n}场平衡准确率: {acc:.2%}")
-        # 分析特征重要性
-        analyze_feature_importance(grid_search.best_estimator_, X_train_32, model_name, feature_names)
-
+    
+    # 创建投票集成模型
+    voting_clf = VotingClassifier(
+        estimators=estimators,
+        voting='soft',  # 使用软投票，考虑预测概率
+        weights=[1, 1, 1, 1]  # 可以调整权重
+    )
+    
+    # 训练投票集成模型
+    print("\n训练投票集成模型...")
+    voting_clf.fit(X_train_32, y_train)
+    
+    # 评估投票集成模型
+    y_pred_voting = voting_clf.predict(X_test_32)
+    print("\n投票集成模型的测试集表现：")
+    print(f"平衡准确率: {balanced_accuracy_score(y_test, y_pred_voting):.2%}")
+    print(classification_report(y_test, y_pred_voting, target_names=target_names))
+    
+    # 添加投票集成模型到best_models
+    best_models['Voting'] = {
+        'best_estimator': voting_clf,
+        'best_params': None,
+        'best_score': balanced_accuracy_score(y_test, y_pred_voting)
+    }
+    
     return best_models
 
 
