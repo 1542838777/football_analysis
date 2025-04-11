@@ -231,7 +231,9 @@ def _process_single_match(group,agency_pairs):
                 features[key] = group[f'first_{outcome}_sp'].mean()
 
     features['league_id'] = group['league_id'].max()
-    features['nwdl_result'] = group['nwdl_result'].max()
+    #group是否含nwdl_result
+    if 'nwdl_result' in group.columns:
+        features['nwdl_result'] = group['nwdl_result'].max()
 
     # 以上结果 进行处理
     for outcome in ['win', 'draw', 'lose']:
