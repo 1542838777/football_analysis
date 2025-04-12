@@ -48,6 +48,14 @@ def add_institution_discrepancy_colum(match_level_df):
     match_level_df['ddi_lose'] = match_level_df['first_lose_sp_std'] / (
             match_level_df['first_win_sp_std'] + match_level_df['first_draw_sp_std'] + 1e-6)
 
+
+
+#ces
+    has_series = match_level_df['league_id'].apply(lambda x: isinstance(x, pd.Series)).any()
+
+    if has_series:
+
+        print(f'存在Series类型的值{has_series}')
     # 动态分位数排名（按联赛分组）
     for col in ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']:
         match_level_df[f'{col}_rank'] = match_level_df.groupby('league_id')[col].transform(
@@ -144,7 +152,7 @@ def add_institution_discrepancy_colum(match_level_df):
         'first_win_sp_std_momentum', 'first_draw_sp_std_momentum', 'first_lose_sp_std_momentum',
         'balance_index', 'discrepancy_outlier', 'nash_ratio', 'minimax'
     ]
-    
+
     missing_columns = [col for col in expected_columns if col not in match_level_df.columns]
     if missing_columns:
         print(f"警告：以下特征列未生成: {missing_columns}")
@@ -162,7 +170,7 @@ def _process_single_match(group,agency_pairs):
         if len(sp_series.dropna()) >= 3:  # 确保有足够的数据计算统计量
             features.update({
                 f'first_{outcome}_sp_mean': sp_series.mean(),
-                f'first_{outcome}_sp_std': sp_series.std(),
+                f'first_{outcome}_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
                 f'first_{outcome}_sp_max': sp_series.max(),
                 f'first_{outcome}_sp_min': sp_series.min(),
                 f'first_{outcome}_sp_range': sp_series.max() - sp_series.min(),
@@ -172,7 +180,7 @@ def _process_single_match(group,agency_pairs):
         else:
             features.update({
                 f'first_{outcome}_sp_mean': sp_series.mean(),
-                f'first_{outcome}_sp_std': sp_series.std(),
+                f'first_{outcome}_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
                 f'first_{outcome}_sp_max': sp_series.max(),
                 f'first_{outcome}_sp_min': sp_series.min(),
                 f'first_{outcome}_sp_range': sp_series.max() - sp_series.min(),
@@ -185,7 +193,7 @@ def _process_single_match(group,agency_pairs):
         if len(kelly_series.dropna()) >= 3:
             features.update({
                 f'first_{outcome}_kelly_index_mean': kelly_series.mean(),
-                f'first_{outcome}_kelly_index_std': kelly_series.std(),
+                f'first_{outcome}_kelly_index_std': kelly_series.dropna().size >= 2 and kelly_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
                 f'first_{outcome}_kelly_index_max': kelly_series.max(),
                 f'first_{outcome}_kelly_index_min': kelly_series.min(),
                 f'first_{outcome}_kelly_index_range': kelly_series.max() - kelly_series.min(),
@@ -195,7 +203,7 @@ def _process_single_match(group,agency_pairs):
         else:
             features.update({
                 f'first_{outcome}_kelly_index_mean': kelly_series.mean(),
-                f'first_{outcome}_kelly_index_std': kelly_series.std(),
+                f'first_{outcome}_kelly_index_std': kelly_series.dropna().size >= 2 and kelly_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
                 f'first_{outcome}_kelly_index_max': kelly_series.max(),
                 f'first_{outcome}_kelly_index_min': kelly_series.min(),
                 f'first_{outcome}_kelly_index_range': kelly_series.max() - kelly_series.min(),
@@ -308,10 +316,11 @@ def create_match_level_future_by_match_group(df):
 
     # 保持原始顺序
     match_level_df = match_level_df.reindex(df['match_id'].unique())
-    
+
     # 分歧排名，基于 first_win_sp_std first_draw_sp_std first_lose_sp_std
+    # match_level_df的league_id强转为int类型
     match_level_df = add_institution_discrepancy_colum(match_level_df)
-    
+
     return match_level_df
 
 
@@ -345,32 +354,32 @@ def create_features(df, useless_cols=None):
         useless_cols = ['europe_handicap_result', 'match_time', 'match_id', 'league_id', 'nwdl_result']
 
     df = df.copy()
-    
+
     # 只选择数值类型的列
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
     base_cols = [col for col in numeric_cols if col not in useless_cols]
-    
+
     # 检查并处理缺失值
     missing_cols = df[base_cols].columns[df[base_cols].isna().all()].tolist()
     if missing_cols:
         print(f"以下列完全缺失，将被移除: {missing_cols}")
         base_cols = [col for col in base_cols if col not in missing_cols]
-    
+
     # 处理NaN值
     imputer = SimpleImputer(strategy='mean')
     imputed_data = imputer.fit_transform(df[base_cols])
-    
+
     # 创建新的DataFrame
     features_df = pd.DataFrame(imputed_data, columns=base_cols, index=df.index)
-    
+
     # 添加基础特征
     for col in base_cols:
         # 为std相关的特征添加统计特征
         if 'std' in col:
             features_df[f'{col}_rank'] = features_df[col].rank(pct=True)
             features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
-    
+
     # 添加比率特征
     sp_mean_cols = [col for col in base_cols if 'sp_mean' in col]
     if len(sp_mean_cols) >= 2:
@@ -379,49 +388,49 @@ def create_features(df, useless_cols=None):
                 col1, col2 = sp_mean_cols[i], sp_mean_cols[j]
                 features_df[f'{col1}_{col2}_ratio'] = features_df[col1] / features_df[col2]
                 features_df[f'{col1}_{col2}_diff'] = features_df[col1] - features_df[col2]
-    
+
     # 添加凯利指数相关特征
     kelly_cols = [col for col in base_cols if 'kelly' in col.lower()]
     for col in kelly_cols:
         if 'mean' in col:
             features_df[f'{col}_rank'] = features_df[col].rank(pct=True)
             features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
-    
+
     return features_df
 
 
 # 数据预处理：时序分割，特征处理，标准化
 def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=0.2):
     """数据预处理：时序分割，特征处理，标准化"""
-    
+
     # 时序分割
     split_idx = int(len(df) * (1 - test_size))
     train_df = df.iloc[:split_idx]
     test_df = df.iloc[split_idx:]
-    
+
     # 特征处理
     X_train = create_features(train_df, useless_cols)
     X_test = create_features(test_df, useless_cols)
-    
+
     # 确保训练集和测试集的特征一致
     common_cols = list(set(X_train.columns) & set(X_test.columns))
     X_train = X_train[common_cols]
     X_test = X_test[common_cols]
-    
+
     # 保存特征名称
     feature_names = X_train.columns.tolist()
-    
+
     # 标签处理
     y_train = train_df[target_column]
     y_train, label_map = map_labels(train_df[target_column], guess_type)
     y_test = np.array([label_map[str(label)] for label in test_df[target_column]])
-    
+
     # 处理NaN值
     from sklearn.impute import SimpleImputer
     imputer = SimpleImputer(strategy='mean')
     X_train_imputed = imputer.fit_transform(X_train)
     X_test_imputed = imputer.transform(X_test)
-    
+
     # 标准化
     scaler = StandardScaler()
     X_train_scaled = pd.DataFrame(
@@ -434,19 +443,19 @@ def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=
         columns=feature_names,
         index=X_test.index
     )
-    
+
     # 使用SMOTE处理类别不平衡
     smote = SMOTE(random_state=42, k_neighbors=5)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-    
+
     # 特征选择
-    selector = SelectFromModel(estimator=RandomForestClassifier(n_estimators=100, random_state=42), max_features=30)
+    selector = SelectFromModel(estimator=RandomForestClassifier(n_estimators=100, random_state=42), max_features=148)
     X_train_selected = selector.fit_transform(X_train_balanced, y_train_balanced)
     X_test_selected = selector.transform(X_test_scaled)
-    
+
     # 获取选择的特征名称
     selected_feature_names = [feature_names[i] for i in selector.get_support(indices=True)]
-    
+
     return (pd.DataFrame(X_train_selected, columns=selected_feature_names, index=X_train_balanced.index),
             pd.DataFrame(X_test_selected, columns=selected_feature_names, index=X_test_scaled.index),
             y_train_balanced, y_test, scaler, selected_feature_names)
@@ -530,7 +539,7 @@ def get_param_grids():
 
 def analyze_feature_importance(model, X_train, model_name, feature_names=None):
     """分析并打印模型的特征重要性
-    
+
     Args:
         model: 训练好的模型
         X_train: 训练数据
@@ -538,11 +547,11 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
         feature_names: 特征名称列表
     """
     print(f"\n{model_name} 模型的特征重要性（按重要性降序排列）：")
-    
+
     # 获取特征名称
     if feature_names is None:
         feature_names = X_train.columns if hasattr(X_train, 'columns') else [f'feature_{i}' for i in range(X_train.shape[1])]
-    
+
     # 根据不同模型类型获取特征重要性
     if hasattr(model, 'feature_importances_'):
         # 适用于XGBoost、LightGBM、RandomForest等
@@ -553,7 +562,7 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
             min_len = min(len(importances), len(feature_names))
             importances = importances[:min_len]
             feature_names = feature_names[:min_len]
-        
+
         importance_df = pd.DataFrame({
             'feature': feature_names,
             'importance': importances
@@ -568,7 +577,7 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
             min_len = min(len(coef[0]), len(feature_names))
             coef = coef[:, :min_len]
             feature_names = feature_names[:min_len]
-        
+
         importance_df = pd.DataFrame({
             'feature': feature_names,
             'coefficient': coef[0]  # 对于多分类，可能需要处理多个系数
@@ -576,14 +585,14 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
         print(importance_df.to_string())
     else:
         print("该模型不支持特征重要性分析")
-    
+
     return importance_df if 'importance_df' in locals() else None
 
 
 def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models, feature_names=None):
     best_models = {}
     estimators = []  # 用于存储所有训练好的模型
-    
+
     for model_name, model in models.items():
         print(f"\n正在调参 {model_name} ...")
         grid_search = GridSearchCV(
@@ -598,14 +607,14 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
         # 转换数据类型为float32以减少内存使用
         X_train_32 = X_train.astype(np.float32)
         X_test_32 = X_test.astype(np.float32)
-        
+
         grid_search.fit(X_train_32, y_train)
         best_models[model_name] = {
             'best_estimator': grid_search.best_estimator_,
             'best_params': grid_search.best_params_,
             'best_score': grid_search.best_score_
         }
-        
+
         # 将训练好的模型添加到estimators列表
         estimators.append((model_name, grid_search.best_estimator_))
 
@@ -618,7 +627,7 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
         target_names = np.unique(y_train)
         target_names = [str(c) for c in np.unique(target_names)]
         print(classification_report(y_test, y_pred, target_names=target_names))
-        
+
         # 分析特征重要性
         try:
             analyze_feature_importance(grid_search.best_estimator_, X_train_32, model_name, feature_names)
@@ -634,24 +643,24 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
                 n
             )
             print(f"\n{model_name}模型最近{n}场平衡准确率: {acc:.2%}")
-    
+
     # 创建投票集成模型
     voting_clf = VotingClassifier(
         estimators=estimators,
         voting='soft',  # 使用软投票，考虑预测概率
         weights=[1, 1, 1, 1]  # 可以调整权重
     )
-    
+
     # 训练投票集成模型
     print("\n训练投票集成模型...")
     voting_clf.fit(X_train_32, y_train)
-    
+
     # 评估投票集成模型
     y_pred_voting = voting_clf.predict(X_test_32)
     print("\n投票集成模型的测试集表现：")
     print(f"平衡准确率: {balanced_accuracy_score(y_test, y_pred_voting):.2%}")
     print(classification_report(y_test, y_pred_voting, target_names=target_names))
-    
+
     # 计算投票集成模型的最近N场准确率
     for n in [20, 150]:
         acc = get_recent_n_accuracy(
@@ -661,14 +670,14 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
             n
         )
         print(f"\n投票集成模型最近{n}场平衡准确率: {acc:.2%}")
-    
+
     # 添加投票集成模型到best_models
     best_models['Voting'] = {
         'best_estimator': voting_clf,
         'best_params': None,
         'best_score': balanced_accuracy_score(y_test, y_pred_voting)
     }
-    
+
     return best_models
 
 
