@@ -50,17 +50,6 @@ def add_institution_discrepancy_colum(match_level_df):
 
 
 
-#ces
-    has_series = match_level_df['league_id'].apply(lambda x: isinstance(x, pd.Series)).any()
-
-    if has_series:
-
-        print(f'存在Series类型的值{has_series}')
-    # 动态分位数排名（按联赛分组）
-    for col in ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']:
-        match_level_df[f'{col}_rank'] = match_level_df.groupby('league_id')[col].transform(
-            lambda x: x.rank(pct=True, method='first')
-        )
 
     # 构建两两差异矩阵
     match_level_df['win_draw_gap'] = match_level_df['first_win_sp_std'] - match_level_df['first_draw_sp_std']
@@ -87,23 +76,10 @@ def add_institution_discrepancy_colum(match_level_df):
     match_level_df['dominant_outcome'] = match_level_df[
         ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].idxmax(axis=1, skipna=True)
 
-    # 独热编码
-    dominant_dummies = pd.get_dummies(match_level_df['dominant_outcome'], prefix='dominant')
-    match_level_df = pd.concat([match_level_df, dominant_dummies], axis=1)
+    # # 添加赔率排名
+    # rank_cols  = ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
+    # match_level_df = add_rank_columns(match_level_df, rank_cols)
 
-    # 相对分歧动量
-    window_size = 5
-    for col in ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']:
-        try:
-            # 确保列存在且不为空
-            if col in match_level_df.columns and not match_level_df[col].isna().all():
-                match_level_df[f'{col}_momentum'] = match_level_df.groupby('league_id')[col].transform(
-                    lambda x: x.pct_change(window_size, fill_method=None).rolling(window_size, min_periods=1).mean()
-                )
-                # 填充可能的NaN值
-                match_level_df[f'{col}_momentum'] = match_level_df[f'{col}_momentum'].fillna(0)
-        except Exception as e:
-            print(f"计算 {col}_momentum 时出错: {str(e)}")
 
     # 分歧平衡指数
     try:
@@ -225,7 +201,18 @@ def _process_single_match(group,agency_pairs):
             agency_extreme_num_series = group[f'{target}_first_{outcome}_sp']
             features[f'{outcome}_{target}_agency_num'] = agency_extreme_num_series.apply(
                 lambda x: 1 if x == target else 0).sum()
-
+        # 赔率统计
+    sp_series = group['first_back_rate']
+    features.update({
+        f'first_back_rate_sp_mean': sp_series.mean(),
+        f'first_back_rate_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,
+        # 判断长度是否大于等于2，如果没有，默认填写0
+        f'first_back_rate_sp_max': sp_series.max(),
+        f'first_back_rate_sp_min': sp_series.min(),
+        f'first_back_rate_sp_range': sp_series.max() - sp_series.min(),
+        f'first_back_rate_sp_skew': sp_series.skew(),
+        f'first_back_rate_sp_kurt': sp_series.kurt()
+    })
     # 重点机构特征
     key_bookmakers = [82,39,6,9,64,1000,39,11,57]  # 定义重点机构ID
     for bid in key_bookmakers:
@@ -268,14 +255,53 @@ def _process_single_match(group,agency_pairs):
         features[both_outcome_aver_sp_sub_target_key] = (
                 features[win_outcome_aver_sp_target_key] - features[cur_outcome_aver_sp_target_key]
         )
+
+
     # 将 calculate_odds_difference(group) 合并 到 features
 
-
     features.update(calculate_odds_difference(group, agency_pairs))
+
+
+
+    # # 添加排名
+    # odds_mean_rank_cols = ['first_win_sp_mean', 'first_draw_sp_mean', 'first_lose_sp_mean']
+    # odds_std_rank_cols = ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
+    # kelly_mean_rank_cols = ['first_win_kelly_index_mean', 'first_draw_kelly_index_mean', 'first_lose_kelly_index_mean']
+    # kelly_std_rank_cols = ['first_win_kelly_index_std', 'first_draw_kelly_index_std', 'first_lose_kelly_index_std']
+    # features = add_rank_columns(features, odds_mean_rank_cols)
+    # features = add_rank_columns(features, odds_std_rank_cols)
+    # features = add_rank_columns(features, kelly_mean_rank_cols)
+    # features = add_rank_columns(features, kelly_std_rank_cols)
 
     return pd.Series(features)
 
 
+def add_rank_columns(features, rank_cols):
+    """
+    为特征字典添加横向排名
+
+    Args:
+        features: 特征字典
+        rank_cols: 需要排名的列名列表
+    Returns:
+        添加了排名的特征字典
+    """
+    # 从字典中提取需要排名的值
+    values = [features[col] for col in rank_cols]
+
+    # 计算排名
+    try:
+        ranks = pd.Series(values).rank(method='dense')
+    except Exception as e:
+        print(f'match_id: {features["match_id"]}')
+        raise
+
+
+    # 添加排名到特征字典
+    for col, rank in zip(rank_cols, ranks):
+        features[f'{col}_rank'] = int(rank)
+
+    return features
 def calculate_odds_difference(group,agency_pairs):
     features = {}
     # 生成两两组合
@@ -358,6 +384,7 @@ def create_features(df, useless_cols=None):
     # 只选择数值类型的列
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
+    #
     base_cols = [col for col in numeric_cols if col not in useless_cols]
 
     # 检查并处理缺失值
@@ -376,7 +403,7 @@ def create_features(df, useless_cols=None):
     # 添加基础特征
     for col in base_cols:
         # 为std相关的特征添加统计特征
-        if 'std' in col:
+        if 'std' in col or 'mean' in col:
             features_df[f'{col}_rank'] = features_df[col].rank(pct=True)
             features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
 
@@ -448,16 +475,11 @@ def preprocess_data(df, target_column, guess_type, useless_cols=None, test_size=
     smote = SMOTE(random_state=42, k_neighbors=5)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
-    # 特征选择
-    selector = SelectFromModel(estimator=RandomForestClassifier(n_estimators=100, random_state=42), max_features=148)
-    X_train_selected = selector.fit_transform(X_train_balanced, y_train_balanced)
-    X_test_selected = selector.transform(X_test_scaled)
+    # 获取特征名称
+    selected_feature_names = feature_names
 
-    # 获取选择的特征名称
-    selected_feature_names = [feature_names[i] for i in selector.get_support(indices=True)]
-
-    return (pd.DataFrame(X_train_selected, columns=selected_feature_names, index=X_train_balanced.index),
-            pd.DataFrame(X_test_selected, columns=selected_feature_names, index=X_test_scaled.index),
+    return (X_train_balanced,
+            X_test_scaled,
             y_train_balanced, y_test, scaler, selected_feature_names)
 
 

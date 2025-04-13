@@ -129,7 +129,7 @@ def fetch_new_matches():
       WHERE o.first_handicap = 0
       AND first_win_sp >= 1.12
       AND first_lose_sp >= 1.12
-    AND bet_simple_day = CURDATE() - Interval  3 day
+    AND bet_simple_day >= CURDATE() - Interval 5 day
       """
     raw_df = pd.read_sql(query, engine)
 
