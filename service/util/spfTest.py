@@ -291,7 +291,7 @@ def add_rank_columns(features, rank_cols):
 
     # 计算排名
     try:
-        ranks = pd.Series(values).rank(method='dense')
+        ranks = pd.Series(values).rank(method='dense', axis=0)
     except Exception as e:
         print(f'match_id: {features["match_id"]}')
         raise
@@ -400,12 +400,42 @@ def create_features(df, useless_cols=None):
     # 创建新的DataFrame
     features_df = pd.DataFrame(imputed_data, columns=base_cols, index=df.index)
 
-    # 添加基础特征
-    for col in base_cols:
-        # 为std相关的特征添加统计特征
-        if 'std' in col or 'mean' in col:
-            features_df[f'{col}_rank'] = features_df[col].rank(pct=True)
-            features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
+    # 添加基础特征 - 按特征类型分别进行排名
+
+    # 收集不同类型的特征列
+    kelly_index_mean_cols = [col for col in base_cols if 'kelly_index_mean' in col]
+    kelly_index_std_cols = [col for col in base_cols if 'kelly_index_std' in col]
+    sp_mean_cols = [col for col in base_cols if 'sp_mean' in col]
+    sp_std_cols = [col for col in base_cols if 'sp_std' in col]
+
+    # 为每种类型的特征单独添加z-score
+    for col in kelly_index_mean_cols + kelly_index_std_cols + sp_mean_cols + sp_std_cols:
+        features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
+
+    # 对相同类型的特征进行横向排名
+    # 对kelly_index_mean类型的列进行横向排名
+    if len(kelly_index_mean_cols) > 0:
+        kelly_mean_ranks = features_df[kelly_index_mean_cols].rank(axis=1, pct=True)
+        for col in kelly_index_mean_cols:
+            features_df[f'{col}_rank'] = kelly_mean_ranks[col]
+
+    # 对kelly_index_std类型的列进行横向排名
+    if len(kelly_index_std_cols) > 0:
+        kelly_std_ranks = features_df[kelly_index_std_cols].rank(axis=1, pct=True)
+        for col in kelly_index_std_cols:
+            features_df[f'{col}_rank'] = kelly_std_ranks[col]
+
+    # 对sp_mean类型的列进行横向排名
+    if len(sp_mean_cols) > 0:
+        sp_mean_ranks = features_df[sp_mean_cols].rank(axis=1, pct=True)
+        for col in sp_mean_cols:
+            features_df[f'{col}_rank'] = sp_mean_ranks[col]
+
+    # 对sp_std类型的列进行横向排名
+    if len(sp_std_cols) > 0:
+        sp_std_ranks = features_df[sp_std_cols].rank(axis=1, pct=True)
+        for col in sp_std_cols:
+            features_df[f'{col}_rank'] = sp_std_ranks[col]
 
     # 添加比率特征
     sp_mean_cols = [col for col in base_cols if 'sp_mean' in col]
@@ -416,12 +446,7 @@ def create_features(df, useless_cols=None):
                 features_df[f'{col1}_{col2}_ratio'] = features_df[col1] / features_df[col2]
                 features_df[f'{col1}_{col2}_diff'] = features_df[col1] - features_df[col2]
 
-    # 添加凯利指数相关特征
-    kelly_cols = [col for col in base_cols if 'kelly' in col.lower()]
-    for col in kelly_cols:
-        if 'mean' in col:
-            features_df[f'{col}_rank'] = features_df[col].rank(pct=True)
-            features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
+    # 凯利指数相关特征已在上面处理
 
     return features_df
 
@@ -614,7 +639,18 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
 def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models, feature_names=None):
     best_models = {}
     estimators = []  # 用于存储所有训练好的模型
+    model_weights = []  # 用于存储模型权重
+    model_performances = {}  # 用于存储模型性能指标
 
+    # 转换数据类型为float32以减少内存使用
+    X_train_32 = X_train.astype(np.float32)
+    X_test_32 = X_test.astype(np.float32)
+
+    # 特征选择 - 为不同模型选择不同的特征子集，增加多样性
+    from sklearn.feature_selection import SelectFromModel
+    feature_subsets = {}
+
+    # 第一阶段：训练和评估基础模型
     for model_name, model in models.items():
         print(f"\n正在调参 {model_name} ...")
         grid_search = GridSearchCV(
@@ -626,51 +662,110 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
             verbose=2
         )
 
-        # 转换数据类型为float32以减少内存使用
-        X_train_32 = X_train.astype(np.float32)
-        X_test_32 = X_test.astype(np.float32)
+        # 如果是树模型，尝试使用特征选择
+        if model_name in ['XGBoost', 'LightGBM', 'RandomForest']:
+            # 先训练一个简单模型用于特征选择
+            temp_model = models[model_name]
+            temp_model.fit(X_train_32, y_train)
 
-        grid_search.fit(X_train_32, y_train)
+            # 基于特征重要性选择特征
+            selector = SelectFromModel(temp_model, threshold='mean', prefit=True)
+            feature_mask = selector.get_support()
+            selected_features = [feature for feature, selected in zip(feature_names, feature_mask) if selected]
+
+            # 保存特征子集
+            feature_subsets[model_name] = selected_features
+            print(f"为 {model_name} 选择了 {len(selected_features)} 个特征")
+
+            # 使用选定的特征子集
+            X_train_selected = selector.transform(X_train_32)
+            X_test_selected = selector.transform(X_test_32)
+        else:
+            # 对于非树模型，使用全部特征
+            X_train_selected = X_train_32
+            X_test_selected = X_test_32
+
+        # 训练模型
+        grid_search.fit(X_train_selected, y_train)
+
+        # 模型评估
+        y_pred = grid_search.best_estimator_.predict(X_test_selected)
+        test_balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+
+        # 计算最近N场的准确率
+        recent_30_accuracy = get_recent_n_accuracy(
+            grid_search.best_estimator_,
+            X_test_selected,
+            y_test,
+            30
+        )
+
+        recent_150_accuracy = get_recent_n_accuracy(
+            grid_search.best_estimator_,
+            X_test_selected,
+            y_test,
+            150
+        )
+
+        # 计算综合性能指标
+        composite_score = calculate_composite_score({
+            'best_score': grid_search.best_score_,
+            'test_balanced_accuracy': test_balanced_accuracy,
+            'recent_30_accuracy': recent_30_accuracy,
+            'recent_150_accuracy': recent_150_accuracy
+        })
+
+        # 存储模型性能
+        model_performances[model_name] = composite_score
+
+        # 存储所有评估指标
         best_models[model_name] = {
             'best_estimator': grid_search.best_estimator_,
             'best_params': grid_search.best_params_,
-            'best_score': grid_search.best_score_
+            'best_score': grid_search.best_score_,  # 交叉验证得分
+            'test_balanced_accuracy': test_balanced_accuracy,  # 测试集平衡准确率
+            'recent_30_accuracy': recent_30_accuracy,  # 最近30场准确率
+            'recent_150_accuracy': recent_150_accuracy,  # 最近150场准确率
+            'composite_score': composite_score,  # 综合评分
+            'selected_features': feature_subsets.get(model_name, feature_names)  # 选择的特征
         }
 
         # 将训练好的模型添加到estimators列表
         estimators.append((model_name, grid_search.best_estimator_))
 
-        # 模型评估
-        y_pred = grid_search.best_estimator_.predict(X_test_32)
+        # 基于综合性能计算权重 (将性能指标转换为权重)
+        weight = max(0.5, composite_score * 2)  # 确保权重至少为0.5
+        model_weights.append(weight)
+
         print(f"\n{model_name} 模型的最佳参数组合：")
         print(grid_search.best_params_)
         print(f"\n{model_name} 模型的测试集表现：")
-        print(f"平衡准确率: {balanced_accuracy_score(y_test, y_pred):.2%}")
+        print(f"平衡准确率: {test_balanced_accuracy:.2%}")
+        print(f"综合评分: {composite_score:.2%}")
+        print(f"分配权重: {weight:.2f}")
         target_names = np.unique(y_train)
         target_names = [str(c) for c in np.unique(target_names)]
         print(classification_report(y_test, y_pred, target_names=target_names))
 
         # 分析特征重要性
         try:
-            analyze_feature_importance(grid_search.best_estimator_, X_train_32, model_name, feature_names)
+            analyze_feature_importance(grid_search.best_estimator_, X_train_selected, model_name,
+                                       feature_subsets.get(model_name, feature_names))
         except Exception as e:
             print(f"分析特征重要性时出错: {str(e)}")
 
-        # 计算最近N场的准确率
-        for n in [20, 150]:
-            acc = get_recent_n_accuracy(
-                grid_search.best_estimator_,
-                X_test_32,
-                y_test,
-                n
-            )
-            print(f"\n{model_name}模型最近{n}场平衡准确率: {acc:.2%}")
+        print(f"\n{model_name}模型最近30场平衡准确率: {recent_30_accuracy:.2%}")
+        print(f"\n{model_name}模型最近150场平衡准确率: {recent_150_accuracy:.2%}")
 
-    # 创建投票集成模型
+    # 第二阶段：创建和优化投票集成模型
+    print("\n创建优化的投票集成模型...")
+    print(f"使用的模型权重: {model_weights}")
+
+    # 创建投票集成模型 - 使用基于性能的权重
     voting_clf = VotingClassifier(
         estimators=estimators,
         voting='soft',  # 使用软投票，考虑预测概率
-        weights=[1, 1, 1, 1]  # 可以调整权重
+        weights=model_weights  # 使用基于性能的权重
     )
 
     # 训练投票集成模型
@@ -679,25 +774,91 @@ def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, mod
 
     # 评估投票集成模型
     y_pred_voting = voting_clf.predict(X_test_32)
-    print("\n投票集成模型的测试集表现：")
-    print(f"平衡准确率: {balanced_accuracy_score(y_test, y_pred_voting):.2%}")
-    print(classification_report(y_test, y_pred_voting, target_names=target_names))
+    test_balanced_accuracy_voting = balanced_accuracy_score(y_test, y_pred_voting)
 
-    # 计算投票集成模型的最近N场准确率
-    for n in [20, 150]:
-        acc = get_recent_n_accuracy(
-            voting_clf,
-            X_test_32,
-            y_test,
-            n
-        )
-        print(f"\n投票集成模型最近{n}场平衡准确率: {acc:.2%}")
+    # 计算投票集成模型的最近N场的准确率
+    recent_30_accuracy_voting = get_recent_n_accuracy(voting_clf, X_test_32, y_test, 30)
+    recent_150_accuracy_voting = get_recent_n_accuracy(voting_clf, X_test_32, y_test, 150)
+
+    # 计算投票模型的综合评分
+    voting_composite_score = calculate_composite_score({
+        'best_score': test_balanced_accuracy_voting,  # 使用测试集准确率作为交叉验证得分
+        'test_balanced_accuracy': test_balanced_accuracy_voting,
+        'recent_30_accuracy': recent_30_accuracy_voting,
+        'recent_150_accuracy': recent_150_accuracy_voting
+    })
+
+    print("\n投票集成模型的测试集表现：")
+    print(f"平衡准确率: {test_balanced_accuracy_voting:.2%}")
+    print(f"综合评分: {voting_composite_score:.2%}")
+    print(classification_report(y_test, y_pred_voting, target_names=target_names))
+    print(f"\n投票集成模型最近30场平衡准确率: {recent_30_accuracy_voting:.2%}")
+    print(f"\n投票集成模型最近150场平衡准确率: {recent_150_accuracy_voting:.2%}")
+
+    # 第三阶段：创建和优化堆叠集成模型
+    from sklearn.ensemble import StackingClassifier
+    from sklearn.linear_model import LogisticRegression
+
+    print("\n创建堆叠集成模型...")
+    # 使用逻辑回归作为元分类器
+    meta_classifier = LogisticRegression(max_iter=1000, class_weight='balanced')
+
+    # 创建堆叠集成模型
+    stacking_clf = StackingClassifier(
+        estimators=estimators,
+        final_estimator=meta_classifier,
+        cv=3,  # 使用3折交叉验证
+        stack_method='predict_proba',  # 使用概率预测
+        passthrough=False  # 不传递原始特征
+    )
+
+    # 训练堆叠集成模型
+    print("\n训练堆叠集成模型...")
+    stacking_clf.fit(X_train_32, y_train)
+
+    # 评估堆叠集成模型
+    y_pred_stacking = stacking_clf.predict(X_test_32)
+    test_balanced_accuracy_stacking = balanced_accuracy_score(y_test, y_pred_stacking)
+
+    # 计算堆叠集成模型的最近N场的准确率
+    recent_30_accuracy_stacking = get_recent_n_accuracy(stacking_clf, X_test_32, y_test, 30)
+    recent_150_accuracy_stacking = get_recent_n_accuracy(stacking_clf, X_test_32, y_test, 150)
+
+    # 计算堆叠模型的综合评分
+    stacking_composite_score = calculate_composite_score({
+        'best_score': test_balanced_accuracy_stacking,
+        'test_balanced_accuracy': test_balanced_accuracy_stacking,
+        'recent_30_accuracy': recent_30_accuracy_stacking,
+        'recent_150_accuracy': recent_150_accuracy_stacking
+    })
+
+    print("\n堆叠集成模型的测试集表现：")
+    print(f"平衡准确率: {test_balanced_accuracy_stacking:.2%}")
+    print(f"综合评分: {stacking_composite_score:.2%}")
+    print(classification_report(y_test, y_pred_stacking, target_names=target_names))
+    print(f"\n堆叠集成模型最近30场平衡准确率: {recent_30_accuracy_stacking:.2%}")
+    print(f"\n堆叠集成模型最近150场平衡准确率: {recent_150_accuracy_stacking:.2%}")
 
     # 添加投票集成模型到best_models
     best_models['Voting'] = {
         'best_estimator': voting_clf,
+        'best_params': {'weights': model_weights},
+        'best_score': test_balanced_accuracy_voting,
+        'test_balanced_accuracy': test_balanced_accuracy_voting,
+        'recent_30_accuracy': recent_30_accuracy_voting,
+        'recent_150_accuracy': recent_150_accuracy_voting,
+        'composite_score': voting_composite_score
+    }
+
+    # 添加堆叠集成模型到best_models
+    best_models['Stacking'] = {
+        'best_estimator': stacking_clf,
         'best_params': None,
-        'best_score': balanced_accuracy_score(y_test, y_pred_voting)
+        'best_score': test_balanced_accuracy_stacking,
+        'test_balanced_accuracy': test_balanced_accuracy_stacking,
+        'recent_30_accuracy': recent_30_accuracy_stacking,
+        'recent_150_accuracy': recent_150_accuracy_stacking,
+        'composite_score': stacking_composite_score
     }
 
     return best_models
@@ -722,6 +883,42 @@ def get_recent_n_accuracy(model, X_test, y_test, n_games):
 
     y_pred = model.predict(recent_X)
     return balanced_accuracy_score(recent_y, y_pred)
+
+
+# 新增函数：计算综合评分
+def calculate_composite_score(model_metrics, weights=None):
+    """
+    根据多个评估指标计算综合评分
+    :param model_metrics: 包含各项评估指标的字典
+    :param weights: 各指标的权重字典，如果为None则使用默认权重
+    :return: 综合评分
+    """
+    # 默认权重配置 - 优化后的权重分配
+    default_weights = {
+        'best_score': 0.15,           # 交叉验证得分权重（降低权重）
+        'test_balanced_accuracy': 0.20, # 测试集平衡准确率权重
+        'recent_30_accuracy': 0.40,     # 最近30场准确率权重（大幅提高权重，更看重近期表现）
+        'recent_150_accuracy': 0.25      # 最近150场准确率权重（略微提高权重）
+    }
+
+    # 使用提供的权重或默认权重
+    weights = weights or default_weights
+
+    # 计算加权得分
+    composite_score = 0.0
+    total_weight = 0.0
+
+    # 只考虑存在的指标
+    for metric, weight in weights.items():
+        if metric in model_metrics and model_metrics[metric] is not None:
+            composite_score += model_metrics[metric] * weight
+            total_weight += weight
+
+    # 归一化得分（确保权重总和为1）
+    if total_weight > 0:
+        composite_score = composite_score / total_weight
+
+    return composite_score
 
 
 def map_labels(y, guess_type):
@@ -762,9 +959,40 @@ def plot_feature_importance(models, feature_names):
     for model_name, model_info in models.items():
         model = model_info['best_estimator']
         if hasattr(model, 'feature_importances_'):
+            # 检查是否有选定的特征列表
+            selected_features = model_info.get('selected_features', feature_names)
+
+            # 处理VotingClassifier和StackingClassifier
+            if hasattr(model, 'estimators_') and not hasattr(model, 'feature_importances_'):
+                # 对于集成模型，使用第一个基础模型的特征重要性
+                if len(model.estimators_) > 0 and hasattr(model.estimators_[0], 'feature_importances_'):
+                    base_model = model.estimators_[0]
+                    importances = base_model.feature_importances_
+                else:
+                    print(f"{model_name} 模型没有可用的特征重要性")
+                    continue
+            else:
+                importances = model.feature_importances_
+
+            # 检查特征重要性和特征名称的长度是否匹配
+            if len(importances) != len(selected_features):
+                print(f"\n警告：{model_name} 模型的特征重要性长度({len(importances)})与特征名称长度({len(selected_features)})不匹配")
+                # 如果是集成模型，使用原始特征名称
+                if model_name in ['Voting', 'Stacking']:
+                    print(f"使用原始特征名称列表")
+                    # 使用前 N 个特征，其中 N 是特征重要性的长度
+                    selected_features = feature_names[:len(importances)]
+                else:
+                    # 对于其他模型，使用自动生成的特征名称
+                    print(f"使用自动生成的特征名称")
+                    selected_features = [f'feature_{i}' for i in range(len(importances))]
+
+            # 创建特征重要性的Series并可视化
             plt.figure(figsize=(10, 6))
-            pd.Series(model.feature_importances_, index=feature_names).nlargest(15).plot(kind='barh')
+            importance_series = pd.Series(importances, index=selected_features)
+            importance_series.nlargest(15).plot(kind='barh')
             plt.title(f'{model_name} Top 15 Feature Importances')
+            plt.tight_layout()
             plt.show()
 
 

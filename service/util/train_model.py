@@ -13,9 +13,20 @@ from service.util.spfTest import (
     train_and_evaluate_models, compute_class_weights, plot_feature_importance
 )
 
-def train_and_save_model(model_dir='models'):
+def train_and_save_model(model_dir='models', score_weights=None):
     """
     训练模型并保存到指定目录
+
+    参数:
+        model_dir (str): 模型保存目录
+        score_weights (dict): 综合评分的权重字典，例如:
+            {
+                'best_score': 0.25,            # 交叉验证得分权重
+                'test_balanced_accuracy': 0.25, # 测试集平衡准确率权重
+                'recent_30_accuracy': 0.30,     # 最近30场准确率权重
+                'recent_150_accuracy': 0.20     # 最近150场准确率权重
+            }
+            如果为None，则使用默认权重
     """
     # 创建模型目录
     os.makedirs(model_dir, exist_ok=True)
@@ -41,12 +52,34 @@ def train_and_save_model(model_dir='models'):
     # 训练并评估模型
     best_models = train_and_evaluate_models(X_train_scaled, y_train, X_test_scaled, y_test, param_grids, models, feature_names)
 
-    # 选择最佳模型
-    best_model_name = max(best_models, key=lambda k: best_models[k]['best_score'])
+    # 从 spfTest 模块导入计算综合评分的函数
+    from service.util.spfTest import calculate_composite_score
+
+    # 计算每个模型的综合评分
+    model_scores = {}
+    for model_name, model_info in best_models.items():
+        # 计算综合评分
+        composite_score = calculate_composite_score(model_info, score_weights)
+        model_scores[model_name] = composite_score
+
+        # 打印每个模型的评分详情
+        print(f"\n{model_name} 模型的评分详情:")
+        print(f"  交叉验证得分: {model_info['best_score']:.2%}")
+        print(f"  测试集平衡准确率: {model_info['test_balanced_accuracy']:.2%}")
+        print(f"  最近30场准确率: {model_info['recent_30_accuracy']:.2%}")
+        print(f"  最近150场准确率: {model_info['recent_150_accuracy']:.2%}")
+        print(f"  综合评分: {composite_score:.2%}")
+
+    # 选择综合评分最高的模型
+    best_model_name = max(model_scores, key=model_scores.get)
     best_model = best_models[best_model_name]['best_estimator']
 
     print(f"\n最佳模型: {best_model_name}")
-    print(f"平衡准确率: {best_models[best_model_name]['best_score']:.2%}")
+    print(f"综合评分: {model_scores[best_model_name]:.2%}")
+    print(f"交叉验证得分: {best_models[best_model_name]['best_score']:.2%}")
+    print(f"测试集平衡准确率: {best_models[best_model_name]['test_balanced_accuracy']:.2%}")
+    print(f"最近30场准确率: {best_models[best_model_name]['recent_30_accuracy']:.2%}")
+    print(f"最近150场准确率: {best_models[best_model_name]['recent_150_accuracy']:.2%}")
 
     # 保存模型和相关组件
     joblib.dump(best_model, os.path.join(model_dir, 'best_model.pkl'))
@@ -57,13 +90,23 @@ def train_and_save_model(model_dir='models'):
     # 保存模型元数据
     metadata = {
         'model_name': best_model_name,
-        'balanced_accuracy': best_models[best_model_name]['best_score'],
+        'composite_score': model_scores[best_model_name],
+        'cross_validation_score': best_models[best_model_name]['best_score'],
+        'test_balanced_accuracy': best_models[best_model_name]['test_balanced_accuracy'],
+        'recent_30_accuracy': best_models[best_model_name]['recent_30_accuracy'],
+        'recent_150_accuracy': best_models[best_model_name]['recent_150_accuracy'],
         'feature_count': len(feature_names),
         'train_samples': X_train_scaled.shape[0],
         'test_samples': X_test_scaled.shape[0],
         'class_distribution': {
             'train': np.bincount(y_train).tolist(),
             'test': np.bincount(y_test).tolist()
+        },
+        'score_weights': score_weights or {
+            'best_score': 0.20,
+            'test_balanced_accuracy': 0.25,
+            'recent_30_accuracy': 0.33,
+            'recent_150_accuracy': 0.22
         }
     }
 
@@ -72,9 +115,28 @@ def train_and_save_model(model_dir='models'):
     print(f"\n模型和相关组件已保存到 {model_dir} 目录")
 
     # 特征重要性可视化
-    plot_feature_importance({best_model_name: {'best_estimator': best_model}}, feature_names)
+    # 获取最佳模型的完整信息，包括选定的特征
+    best_model_info = best_models[best_model_name]
+
+    # 检查是否有选定的特征
+    selected_features = best_model_info.get('selected_features', feature_names)
+
+    # 使用完整的模型信息进行特征重要性可视化
+    plot_feature_importance({best_model_name: best_model_info}, feature_names)
 
     return best_model, scaler, feature_names, guess_type
 
 if __name__ == '__main__':
+    # 可以自定义权重，例如更重视最近的比赛结果
+    custom_weights = {
+        'best_score': 0.20,            # 交叉验证得分权重
+        'test_balanced_accuracy': 0.20, # 测试集平衡准确率权重
+        'recent_30_accuracy': 0.40,     # 最近30场准确率权重
+        'recent_150_accuracy': 0.20     # 最近150场准确率权重
+    }
+
+    # 使用默认权重
     train_and_save_model()
+
+    # 或者使用自定义权重
+    # train_and_save_model(score_weights=custom_weights)
