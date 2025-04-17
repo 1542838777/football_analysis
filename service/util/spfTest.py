@@ -31,99 +31,141 @@ def getOriginData(guess_type):
 
 
 # 市场分歧
-def add_institution_discrepancy_colum(match_level_df):
-    """添加机构分歧相关特征"""
-    # 市场分歧指数
-    match_level_df['market_disagreement'] = (
-            match_level_df['first_win_sp_std'] +
-            match_level_df['first_draw_sp_std'] +
-            match_level_df['first_lose_sp_std']
+def _add_basic_discrepancy_features(df):
+    """
+    添加基础的机构分歧特征
+
+    Args:
+        df: 数据框
+
+    Returns:
+        添加了基础分歧特征的数据框
+    """
+    # 市场分歧指数 - 三种赔率标准差的平均值
+    df['market_disagreement'] = (
+        df['first_win_sp_std'] +
+        df['first_draw_sp_std'] +
+        df['first_lose_sp_std']
     ) / 3
 
-    # 分歧方向强度
-    match_level_df['ddi_win'] = match_level_df['first_win_sp_std'] / (
-            match_level_df['first_draw_sp_std'] + match_level_df['first_lose_sp_std'] + 1e-6)
-    match_level_df['ddi_draw'] = match_level_df['first_draw_sp_std'] / (
-            match_level_df['first_win_sp_std'] + match_level_df['first_lose_sp_std'] + 1e-6)
-    match_level_df['ddi_lose'] = match_level_df['first_lose_sp_std'] / (
-            match_level_df['first_win_sp_std'] + match_level_df['first_draw_sp_std'] + 1e-6)
+    # 分歧方向强度 - 衡量某一结果的分歧相对于其他结果的强度
+    df['ddi_win'] = df['first_win_sp_std'] / (
+        df['first_draw_sp_std'] + df['first_lose_sp_std'] + 1e-6)  # 避免除零
+    df['ddi_draw'] = df['first_draw_sp_std'] / (
+        df['first_win_sp_std'] + df['first_lose_sp_std'] + 1e-6)
+    df['ddi_lose'] = df['first_lose_sp_std'] / (
+        df['first_win_sp_std'] + df['first_draw_sp_std'] + 1e-6)
 
+    # 构建两两差异矩阵 - 计算各赔率标准差之间的差值
+    df['win_draw_gap'] = df['first_win_sp_std'] - df['first_draw_sp_std']
+    df['win_lose_gap'] = df['first_win_sp_std'] - df['first_lose_sp_std']
+    df['draw_lose_gap'] = df['first_draw_sp_std'] - df['first_lose_sp_std']
 
-
-
-    # 构建两两差异矩阵
-    match_level_df['win_draw_gap'] = match_level_df['first_win_sp_std'] - match_level_df['first_draw_sp_std']
-    match_level_df['win_lose_gap'] = match_level_df['first_win_sp_std'] - match_level_df['first_lose_sp_std']
-    match_level_df['draw_lose_gap'] = match_level_df['first_draw_sp_std'] - match_level_df['first_lose_sp_std']
-
-    # 符号编码
-    match_level_df['gap_direction'] = (
-            (match_level_df['win_draw_gap'] > 0).astype(int) * 100 +
-            (match_level_df['win_lose_gap'] > 0).astype(int) * 10 +
-            (match_level_df['draw_lose_gap'] > 0).astype(int)
+    # 符号编码 - 将差异的方向编码为一个整数
+    df['gap_direction'] = (
+        (df['win_draw_gap'] > 0).astype(int) * 100 +
+        (df['win_lose_gap'] > 0).astype(int) * 10 +
+        (df['draw_lose_gap'] > 0).astype(int)
     )
 
-    # 熵值分歧指数
+    return df
+
+
+def _add_entropy_features(df):
+    """
+    添加基于熵的分歧特征
+
+    Args:
+        df: 数据框
+
+    Returns:
+        添加了熵相关特征的数据框
+    """
+    # 熵值分歧指数 - 使用信息熵衡量分歧程度
     def calculate_entropy(row):
         total = row.sum()
         probs = row / total
-        return -np.sum(probs * np.log(probs + 1e-6))
+        return -np.sum(probs * np.log(probs + 1e-6))  # 避免log(0)
 
-    match_level_df['disagreement_entropy'] = match_level_df[
+    df['disagreement_entropy'] = df[
         ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].apply(calculate_entropy, axis=1)
 
-    # 主导分歧指标
-    match_level_df['dominant_outcome'] = match_level_df[
+    # 主导分歧指标 - 哪个结果的分歧最大
+    df['dominant_outcome'] = df[
         ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].idxmax(axis=1, skipna=True)
 
-    # # 添加赔率排名
-    # rank_cols  = ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
-    # match_level_df = add_rank_columns(match_level_df, rank_cols)
+    return df
 
 
-    # 分歧平衡指数
+def _add_advanced_discrepancy_features(df):
+    """
+    添加高级分歧特征，包括平衡指数、离群检测和博弈论特征
+
+    Args:
+        df: 数据框
+
+    Returns:
+        添加了高级分歧特征的数据框
+    """
+    # 分歧平衡指数 - 使用极坐标角度表示分歧的平衡性
     try:
-        match_level_df['balance_index'] = np.arctan2(
-            match_level_df['first_draw_sp_std'] - match_level_df['first_win_sp_std'],
-            match_level_df['first_lose_sp_std'] - match_level_df['first_win_sp_std']
+        df['balance_index'] = np.arctan2(
+            df['first_draw_sp_std'] - df['first_win_sp_std'],
+            df['first_lose_sp_std'] - df['first_win_sp_std']
         )
-        match_level_df['balance_index'] = match_level_df['balance_index'].fillna(0)
+        df['balance_index'] = df['balance_index'].fillna(0)
     except Exception as e:
         print(f"计算 balance_index 时出错: {str(e)}")
 
-    # 分歧离群检测
+    # 分歧离群检测 - 使用隔离森林检测异常分歧模式
     try:
         from sklearn.ensemble import IsolationForest
-        clf = IsolationForest(contamination=0.1)
-        # 确保所有需要的列都存在
+        clf = IsolationForest(contamination=0.1)  # 假设10%的数据是异常值
         required_cols = ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
-        if all(col in match_level_df.columns for col in required_cols):
-            match_level_df['discrepancy_outlier'] = clf.fit_predict(
-                match_level_df[required_cols]
-            )
+        if all(col in df.columns for col in required_cols):
+            df['discrepancy_outlier'] = clf.fit_predict(df[required_cols])
     except Exception as e:
         print(f"计算 discrepancy_outlier 时出错: {str(e)}")
 
-    # 博弈论特征
+    # 博弈论特征 - Nash比率和极小极大值
     try:
-        match_level_df['nash_ratio'] = (
-                (match_level_df['first_win_sp_std'] * match_level_df['first_draw_sp_std']) /
-                (match_level_df['first_lose_sp_std'] ** 2 + 1e-6)
+        # Nash比率 - 胜平赔率标准差的乘积与负赔率标准差平方的比值
+        df['nash_ratio'] = (
+            (df['first_win_sp_std'] * df['first_draw_sp_std']) /
+            (df['first_lose_sp_std'] ** 2 + 1e-6)  # 避免除零
         )
-        # 填充可能的NaN值
-        match_level_df['nash_ratio'] = match_level_df['nash_ratio'].fillna(0)
-    except Exception as e:
-        print(f"计算 nash_ratio 时出错: {str(e)}")
+        df['nash_ratio'] = df['nash_ratio'].fillna(0)
 
-    try:
-        match_level_df['minimax'] = match_level_df[['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].max(axis=1) - \
-                                    match_level_df[['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].min(axis=1)
-        # 填充可能的NaN值
-        match_level_df['minimax'] = match_level_df['minimax'].fillna(0)
+        # 极小极大值 - 最大分歧与最小分歧的差值
+        df['minimax'] = df[['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].max(axis=1) - \
+                         df[['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']].min(axis=1)
+        df['minimax'] = df['minimax'].fillna(0)
     except Exception as e:
-        print(f"计算 minimax 时出错: {str(e)}")
+        print(f"计算博弈论特征时出错: {str(e)}")
 
-    # 验证所有特征列是否已生成
+    return df
+
+
+def add_institution_discrepancy_colum(match_level_df):
+    """
+    添加机构分歧相关特征
+
+    Args:
+        match_level_df: 比赛级别的数据框，包含各机构赔率标准差
+
+    Returns:
+        添加了分歧特征的数据框
+    """
+    # 1. 添加基础分歧特征
+    match_level_df = _add_basic_discrepancy_features(match_level_df)
+
+    # 2. 添加熵相关特征
+    match_level_df = _add_entropy_features(match_level_df)
+
+    # 3. 添加高级分歧特征
+    match_level_df = _add_advanced_discrepancy_features(match_level_df)
+
+    # 4. 验证所有特征列是否已生成
     expected_columns = [
         'first_win_sp_std_momentum', 'first_draw_sp_std_momentum', 'first_lose_sp_std_momentum',
         'balance_index', 'discrepancy_outlier', 'nash_ratio', 'minimax'
@@ -132,89 +174,104 @@ def add_institution_discrepancy_colum(match_level_df):
     missing_columns = [col for col in expected_columns if col not in match_level_df.columns]
     if missing_columns:
         print(f"警告：以下特征列未生成: {missing_columns}")
+
     return match_level_df
 
-def _process_single_match(group,agency_pairs):
-    """处理单个比赛的所有赔率数据，返回一行特征"""
-    match_id = group.name
-    features = {'match_id': match_id}
+def _calculate_series_stats(series, prefix, min_samples=3):
+    """
+    计算数据序列的统计特征
 
-    # 基础统计特征
+    Args:
+        series: 数据序列
+        prefix: 特征名前缀
+        min_samples: 计算高阶统计量所需的最小样本数
+
+    Returns:
+        包含统计特征的字典
+    """
+    stats = {}
+    # 基本统计量总是计算
+    stats.update({
+        f'{prefix}_mean': series.mean(),
+        f'{prefix}_std': series.dropna().size >= 2 and series.std() or 0,
+        f'{prefix}_max': series.max(),
+        f'{prefix}_min': series.min(),
+        f'{prefix}_range': series.max() - series.min(),
+    })
+
+    # 高阶统计量需要足够的样本
+    if len(series.dropna()) >= min_samples:
+        stats.update({
+            f'{prefix}_skew': series.skew(),
+            f'{prefix}_kurt': series.kurt()
+        })
+    else:
+        stats.update({
+            f'{prefix}_skew': 0,
+            f'{prefix}_kurt': 0
+        })
+
+    return stats
+
+
+def _extract_odds_features(group, features):
+    """
+    提取各种赔率相关的统计特征
+
+    Args:
+        group: 比赛分组数据
+        features: 特征字典，将被更新
+
+    Returns:
+        更新后的特征字典
+    """
+    # 处理胜平负赔率
     for outcome in ['win', 'draw', 'lose']:
-        # 赔率统计
+        # 赔率统计特征
         sp_series = group[f'first_{outcome}_sp']
-        if len(sp_series.dropna()) >= 3:  # 确保有足够的数据计算统计量
-            features.update({
-                f'first_{outcome}_sp_mean': sp_series.mean(),
-                f'first_{outcome}_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
-                f'first_{outcome}_sp_max': sp_series.max(),
-                f'first_{outcome}_sp_min': sp_series.min(),
-                f'first_{outcome}_sp_range': sp_series.max() - sp_series.min(),
-                f'first_{outcome}_sp_skew': sp_series.skew(),
-                f'first_{outcome}_sp_kurt': sp_series.kurt()
-            })
-        else:
-            features.update({
-                f'first_{outcome}_sp_mean': sp_series.mean(),
-                f'first_{outcome}_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
-                f'first_{outcome}_sp_max': sp_series.max(),
-                f'first_{outcome}_sp_min': sp_series.min(),
-                f'first_{outcome}_sp_range': sp_series.max() - sp_series.min(),
-                f'first_{outcome}_sp_skew': 0,
-                f'first_{outcome}_sp_kurt': 0
-            })
+        features.update(_calculate_series_stats(sp_series, f'first_{outcome}_sp'))
 
-        # 凯利指数统计
+        # 凯利指数统计特征
         kelly_series = group[f'first_{outcome}_kelly_index']
-        if len(kelly_series.dropna()) >= 3:
-            features.update({
-                f'first_{outcome}_kelly_index_mean': kelly_series.mean(),
-                f'first_{outcome}_kelly_index_std': kelly_series.dropna().size >= 2 and kelly_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
-                f'first_{outcome}_kelly_index_max': kelly_series.max(),
-                f'first_{outcome}_kelly_index_min': kelly_series.min(),
-                f'first_{outcome}_kelly_index_range': kelly_series.max() - kelly_series.min(),
-                f'first_{outcome}_kelly_index_skew': kelly_series.skew(),
-                f'first_{outcome}_kelly_index_kurt': kelly_series.kurt()
-            })
-        else:
-            features.update({
-                f'first_{outcome}_kelly_index_mean': kelly_series.mean(),
-                f'first_{outcome}_kelly_index_std': kelly_series.dropna().size >= 2 and kelly_series.std() or 0,  # 判断长度是否大于等于2，如果没有，默认填写0
-                f'first_{outcome}_kelly_index_max': kelly_series.max(),
-                f'first_{outcome}_kelly_index_min': kelly_series.min(),
-                f'first_{outcome}_kelly_index_range': kelly_series.max() - kelly_series.min(),
-                f'first_{outcome}_kelly_index_skew': 0,
-                f'first_{outcome}_kelly_index_kurt': 0
-            })
+        features.update(_calculate_series_stats(kelly_series, f'first_{outcome}_kelly_index'))
 
         # 凯利值分布情况统计
         kelly_distribution_num_series = group[f'first_{outcome}_kelly_index']
-        # 大于1.05的
+        # 统计高值(>1.05)和低值(<0.92)的数量
         features[f'{outcome}_kelly_high_val_distribution_num'] = kelly_distribution_num_series.apply(
             lambda x: 1 if x > 1.05 else 0).sum()
-        # 小于0.92的
         features[f'{outcome}_kelly_low_val_distribution_num'] = kelly_distribution_num_series.apply(
             lambda x: 1 if x < 0.92 else 0).sum()
 
-        # 极值 机构数
+        # 统计极值机构数量
         for target in ['max', 'min']:
             agency_extreme_num_series = group[f'{target}_first_{outcome}_sp']
             features[f'{outcome}_{target}_agency_num'] = agency_extreme_num_series.apply(
                 lambda x: 1 if x == target else 0).sum()
-        # 赔率统计
+
+    # 返还率统计特征
     sp_series = group['first_back_rate']
-    features.update({
-        f'first_back_rate_sp_mean': sp_series.mean(),
-        f'first_back_rate_sp_std': sp_series.dropna().size >= 2 and sp_series.std() or 0,
-        # 判断长度是否大于等于2，如果没有，默认填写0
-        f'first_back_rate_sp_max': sp_series.max(),
-        f'first_back_rate_sp_min': sp_series.min(),
-        f'first_back_rate_sp_range': sp_series.max() - sp_series.min(),
-        f'first_back_rate_sp_skew': sp_series.skew(),
-        f'first_back_rate_sp_kurt': sp_series.kurt()
-    })
-    # 重点机构特征
-    key_bookmakers = [82,39,6,9,64,1000,39,11,57]  # 定义重点机构ID
+    features.update(_calculate_series_stats(sp_series, 'first_back_rate_sp'))
+
+    return features
+
+
+def _extract_key_bookmaker_features(group, features):
+    """
+    提取重点博彩公司的赔率特征
+
+    Args:
+        group: 比赛分组数据
+        features: 特征字典，将被更新
+
+    Returns:
+        更新后的特征字典
+    """
+    # 定义重点机构ID
+    key_bookmakers = [3,
+            11,99,63,75,64,39,84,91,68,79,22,32,6,24,126,82,161,18,74,57,192,93,72,47,25,80,17,127,9,106,48,115,42,121,130,70,60,1000,
+    110]
+
     for bid in key_bookmakers:
         agency_data = group[group['bookmaker_id'] == bid]
         for outcome in ['win', 'draw', 'lose']:
@@ -225,45 +282,83 @@ def _process_single_match(group,agency_pairs):
                 # 如果机构没有数据，使用该场比赛的平均值
                 features[key] = group[f'first_{outcome}_sp'].mean()
 
-    features['league_id'] = group['league_id'].max()
-    #group是否含nwdl_result
-    if 'nwdl_result' in group.columns:
-        features['nwdl_result'] = group['nwdl_result'].max()
+    return features
 
-    # 以上结果 进行处理
+
+def _calculate_derived_features(features):
+    """
+    计算衍生特征，如比率、差值等
+
+    Args:
+        features: 包含基础特征的字典
+
+    Returns:
+        添加了衍生特征的字典
+    """
+    # 计算凯利指数与赔率的比率
     for outcome in ['win', 'draw', 'lose']:
         sp_ratio_target_key = f'{outcome}_kelly_sp_ratio'
         kelly_key = f'first_{outcome}_kelly_index_mean'
         outcome_sp_key = f'first_{outcome}_sp_mean'
+
         if features[outcome_sp_key] != 0:  # 避免除以0
             features[sp_ratio_target_key] = features[kelly_key] / features[outcome_sp_key]
         else:
             features[sp_ratio_target_key] = 0
 
-            # 两者赔率比率
-        both_outcome_aver_sp_devision_target_key = f'win_{outcome}_both_outcome_aver_sp_devision'
-        win_outcome_aver_sp_target_key = 'first_win_sp_mean'
-        if (outcome == 'win'):
-            continue
-        cur_outcome_aver_sp_target_key = f'first_{outcome}_sp_mean'
+        # 计算胜赔与其他赔率的比率和差值
+        if outcome != 'win':
+            # 赔率比率
+            both_outcome_aver_sp_devision_target_key = f'win_{outcome}_both_outcome_aver_sp_devision'
+            win_outcome_aver_sp_target_key = 'first_win_sp_mean'
+            cur_outcome_aver_sp_target_key = f'first_{outcome}_sp_mean'
 
-        features[both_outcome_aver_sp_devision_target_key] = (
+            features[both_outcome_aver_sp_devision_target_key] = (
                 features[win_outcome_aver_sp_target_key] / features[cur_outcome_aver_sp_target_key]
-        )
-        # 两者赔率相减
-        both_outcome_aver_sp_sub_target_key = f'{outcome}_both_outcome_aver_sp_sub'
-        features[both_outcome_aver_sp_sub_target_key] = (
+            )
+
+            # 赔率差值
+            both_outcome_aver_sp_sub_target_key = f'{outcome}_both_outcome_aver_sp_sub'
+            features[both_outcome_aver_sp_sub_target_key] = (
                 features[win_outcome_aver_sp_target_key] - features[cur_outcome_aver_sp_target_key]
-        )
+            )
+
+    return features
 
 
-    # 将 calculate_odds_difference(group) 合并 到 features
+def _process_single_match(group, agency_pairs):
+    """
+    处理单个比赛的所有赔率数据，提取特征
 
+    Args:
+        group: 单场比赛的所有赔率数据分组
+        agency_pairs: 需要计算赔率差异的机构对列表
+
+    Returns:
+        包含该场比赛所有特征的Series
+    """
+    # 初始化特征字典
+    match_id = group.name
+    features = {'match_id': match_id}
+
+    # 1. 提取赔率相关统计特征
+    features = _extract_odds_features(group, features)
+
+    # 2. 提取重点博彩公司特征
+    features = _extract_key_bookmaker_features(group, features)
+
+    # 3. 记录联赛ID和比赛结果
+    features['league_id'] = group['league_id'].max()
+    if 'nwdl_result' in group.columns:
+        features['nwdl_result'] = group['nwdl_result'].max()
+
+    # 4. 计算衍生特征
+    features = _calculate_derived_features(features)
+
+    # 5. 添加机构间赔率差异特征
     features.update(calculate_odds_difference(group, agency_pairs))
 
-
-
-    # # 添加排名
+    # 注释掉的排名特征代码
     # odds_mean_rank_cols = ['first_win_sp_mean', 'first_draw_sp_mean', 'first_lose_sp_mean']
     # odds_std_rank_cols = ['first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
     # kelly_mean_rank_cols = ['first_win_kelly_index_mean', 'first_draw_kelly_index_mean', 'first_lose_kelly_index_mean']
@@ -330,11 +425,15 @@ def calculate_odds_difference(group,agency_pairs):
 def create_match_level_future_by_match_group(df):
     """保留所有原有特征，增加关键新特征，保持数据顺序"""
 
-    unique_agencies = [110,3,82,6,64,9,57,106,39,84,1000]
-    unique_agencies = [82,39,110,3,84,6,64,9,57,106,39,84,1000]
-    unique_agencies = [6,9,39,84,110,64,1000]
-    unique_agencies = [ 64,39, 84]
-    uiniqyue_agencies = [82,39,6,9,64]
+    # unique_agencies = [110,3,82,6,64,9,57,106,39,84,1000]
+    # unique_agencies = [82,39,110,3,84,6,64,9,57,106,39,84,1000]
+    # unique_agencies = [6,9,39,84,110,64,1000]
+    unique_agencies = [ 64,39]
+    # uiniqyue_agencies = [82,39,6,9,64]
+    # uiniqyue_agencies = [110,84,9,82] # XGBoost
+    # uiniqyue_agencies = [82,57,84,1000,110,82,39] # LightGBM
+    # uiniqyue_agencies = [ ] # RandomForest
+    # uiniqyue_agencies = [3,1000,82,110,64,106,9,84,39] # svm
     # 生成两两组合
     agency_pairs = list(combinations(unique_agencies, 2))
     # 调用 _process_single_match，排除分组列
@@ -373,80 +472,146 @@ def getSelf():
     return y_column, guess_type, useless_cols, match_level_df
 
 
-# 动态创建增强特征
-def create_features(df, useless_cols=None):
-    """创建增强型特征"""
-    if useless_cols is None:
-        useless_cols = ['europe_handicap_result', 'match_time', 'match_id', 'league_id', 'nwdl_result']
+def _prepare_feature_data(df, useless_cols):
+    """
+    准备特征数据，处理缺失值和数据类型
 
-    df = df.copy()
+    Args:
+        df: 原始数据框
+        useless_cols: 需要排除的列
 
+    Returns:
+        处理后的特征数据框和基础列名列表
+    """
     # 只选择数值类型的列
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
-    #
     base_cols = [col for col in numeric_cols if col not in useless_cols]
 
-    # 检查并处理缺失值
+    # 检查并处理完全缺失的列
     missing_cols = df[base_cols].columns[df[base_cols].isna().all()].tolist()
     if missing_cols:
         print(f"以下列完全缺失，将被移除: {missing_cols}")
         base_cols = [col for col in base_cols if col not in missing_cols]
 
-    # 处理NaN值
+    # 使用均值填充缺失值
     imputer = SimpleImputer(strategy='mean')
     imputed_data = imputer.fit_transform(df[base_cols])
 
     # 创建新的DataFrame
     features_df = pd.DataFrame(imputed_data, columns=base_cols, index=df.index)
 
-    # 添加基础特征 - 按特征类型分别进行排名
+    return features_df, base_cols
 
-    # 收集不同类型的特征列
-    kelly_index_mean_cols = [col for col in base_cols if 'kelly_index_mean' in col]
-    kelly_index_std_cols = [col for col in base_cols if 'kelly_index_std' in col]
-    sp_mean_cols = [col for col in base_cols if 'sp_mean' in col]
-    sp_std_cols = [col for col in base_cols if 'sp_std' in col]
 
-    # 为每种类型的特征单独添加z-score
-    for col in kelly_index_mean_cols + kelly_index_std_cols + sp_mean_cols + sp_std_cols:
-        features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / features_df[col].std()
+def _add_zscore_features(features_df, feature_cols):
+    """
+    为指定特征添加Z-score标准化特征
 
-    # 对相同类型的特征进行横向排名
-    # 对kelly_index_mean类型的列进行横向排名
-    if len(kelly_index_mean_cols) > 0:
-        kelly_mean_ranks = features_df[kelly_index_mean_cols].rank(axis=1, pct=True)
-        for col in kelly_index_mean_cols:
-            features_df[f'{col}_rank'] = kelly_mean_ranks[col]
+    Args:
+        features_df: 特征数据框
+        feature_cols: 需要添加Z-score的列名列表
 
-    # 对kelly_index_std类型的列进行横向排名
-    if len(kelly_index_std_cols) > 0:
-        kelly_std_ranks = features_df[kelly_index_std_cols].rank(axis=1, pct=True)
-        for col in kelly_index_std_cols:
-            features_df[f'{col}_rank'] = kelly_std_ranks[col]
+    Returns:
+        添加了Z-score特征的数据框
+    """
+    for col in feature_cols:
+        # 避免除以0
+        std_val = features_df[col].std()
+        if std_val > 0:
+            features_df[f'{col}_zscore'] = (features_df[col] - features_df[col].mean()) / std_val
+        else:
+            features_df[f'{col}_zscore'] = 0
 
-    # 对sp_mean类型的列进行横向排名
-    if len(sp_mean_cols) > 0:
-        sp_mean_ranks = features_df[sp_mean_cols].rank(axis=1, pct=True)
-        for col in sp_mean_cols:
-            features_df[f'{col}_rank'] = sp_mean_ranks[col]
+    return features_df
 
-    # 对sp_std类型的列进行横向排名
-    if len(sp_std_cols) > 0:
-        sp_std_ranks = features_df[sp_std_cols].rank(axis=1, pct=True)
-        for col in sp_std_cols:
-            features_df[f'{col}_rank'] = sp_std_ranks[col]
 
-    # 添加比率特征
-    sp_mean_cols = [col for col in base_cols if 'sp_mean' in col]
-    if len(sp_mean_cols) >= 2:
-        for i in range(len(sp_mean_cols)):
-            for j in range(i+1, len(sp_mean_cols)):
-                col1, col2 = sp_mean_cols[i], sp_mean_cols[j]
-                features_df[f'{col1}_{col2}_ratio'] = features_df[col1] / features_df[col2]
+def _add_rank_features(features_df, feature_groups):
+    """
+    为不同类型的特征组添加横向排名特征
+
+    Args:
+        features_df: 特征数据框
+        feature_groups: 字典，包含不同类型的特征列名列表
+
+    Returns:
+        添加了排名特征的数据框
+    """
+    # 对每组特征进行横向排名
+    for group_name, cols in feature_groups.items():
+        if len(cols) > 0:
+            # 使用百分比排名，使排名在[0,1]范围内
+            ranks = features_df[cols].rank(axis=1, pct=True)
+            for col in cols:
+                features_df[f'{col}_rank'] = ranks[col]
+
+    return features_df
+
+
+def _add_ratio_features(features_df, cols):
+    """
+    为指定列添加比率和差值特征
+
+    Args:
+        features_df: 特征数据框
+        cols: 需要计算比率和差值的列名列表
+
+    Returns:
+        添加了比率和差值特征的数据框
+    """
+    if len(cols) >= 2:
+        for i in range(len(cols)):
+            for j in range(i+1, len(cols)):
+                col1, col2 = cols[i], cols[j]
+                # 比率特征，避免除以0
+                features_df[f'{col1}_{col2}_ratio'] = features_df[col1] / (features_df[col2] + 1e-6)
+                # 差值特征
                 features_df[f'{col1}_{col2}_diff'] = features_df[col1] - features_df[col2]
 
-    # 凯利指数相关特征已在上面处理
+    return features_df
+
+
+# 动态创建增强特征
+def create_features(df, useless_cols=None):
+    """
+    创建增强型特征
+
+    Args:
+        df: 原始数据框
+        useless_cols: 需要排除的列，默认为空
+
+    Returns:
+        包含原始和增强特征的数据框
+    """
+    # 设置默认排除列
+    if useless_cols is None:
+        useless_cols = ['europe_handicap_result', 'match_time', 'match_id', 'league_id', 'nwdl_result']
+
+    # 复制数据框避免修改原始数据
+    df = df.copy()
+
+    # 1. 准备特征数据
+    features_df, base_cols = _prepare_feature_data(df, useless_cols)
+
+    # 2. 按特征类型分组
+    # 收集不同类型的特征列
+    feature_groups = {
+        'kelly_mean': [col for col in base_cols if 'kelly_index_mean' in col],
+        'kelly_std': [col for col in base_cols if 'kelly_index_std' in col],
+        'sp_mean': [col for col in base_cols if 'sp_mean' in col],
+        'sp_std': [col for col in base_cols if 'sp_std' in col]
+    }
+
+    # 3. 添加Z-score标准化特征
+    all_stat_cols = []
+    for cols in feature_groups.values():
+        all_stat_cols.extend(cols)
+    features_df = _add_zscore_features(features_df, all_stat_cols)
+
+    # 4. 添加横向排名特征
+    features_df = _add_rank_features(features_df, feature_groups)
+
+    # 5. 添加比率和差值特征
+    features_df = _add_ratio_features(features_df, feature_groups['sp_mean'])
 
     return features_df
 
@@ -636,230 +801,272 @@ def analyze_feature_importance(model, X_train, model_name, feature_names=None):
     return importance_df if 'importance_df' in locals() else None
 
 
+def _select_features_for_model(model, model_name, X_train, y_train, feature_names):
+    """
+    为模型选择特征子集
+
+    Args:
+        model: 模型实例
+        model_name: 模型名称
+        X_train: 训练数据
+        y_train: 训练标签
+        feature_names: 特征名称列表
+
+    Returns:
+        选择后的训练数据、测试数据和选择的特征列表
+    """
+    # 对于树模型，使用特征选择
+    if model_name in ['XGBoost', 'LightGBM', 'RandomForest']:
+        # 先训练一个简单模型用于特征选择
+        from sklearn.feature_selection import SelectFromModel
+        temp_model = model
+        temp_model.fit(X_train, y_train)
+
+        # 基于特征重要性选择特征
+        selector = SelectFromModel(temp_model, threshold='mean', prefit=True)
+        feature_mask = selector.get_support()
+        selected_features = [feature for feature, selected in zip(feature_names, feature_mask) if selected]
+
+        print(f"为 {model_name} 选择了 {len(selected_features)} 个特征")
+
+        # 使用选定的特征子集
+        X_train_selected = selector.transform(X_train)
+
+        return X_train_selected, selected_features, selector
+    else:
+        # 对于非树模型，使用全部特征
+        return X_train, feature_names, None
+
+
+def _train_and_evaluate_base_model(model, model_name, param_grid, X_train, y_train, X_test, y_test, feature_names):
+    """
+    训练和评估单个基础模型
+
+    Args:
+        model: 模型实例
+        model_name: 模型名称
+        param_grid: 参数网格
+        X_train: 训练数据
+        y_train: 训练标签
+        X_test: 测试数据
+        y_test: 测试标签
+        feature_names: 特征名称列表
+
+    Returns:
+        模型评估结果字典和训练好的模型
+    """
+    print(f"\n正在调参 {model_name} ...")
+
+    # 2. 网格搜索调参
+    grid_search = GridSearchCV(
+        estimator=model,
+        param_grid=param_grid,
+        cv=TimeSeriesSplit(n_splits=3),
+        scoring='balanced_accuracy',
+        n_jobs=2,
+        verbose=2
+    )
+
+    # 3. 训练模型
+    grid_search.fit(X_train, y_train)
+    best_model = grid_search.best_estimator_
+
+    # 4. 模型评估
+    y_pred = best_model.predict(X_test)
+    test_balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+
+    # 5. 计算最近N场的准确率
+    recent_30_accuracy = get_recent_n_accuracy(best_model, X_test, y_test, 30)
+    recent_150_accuracy = get_recent_n_accuracy(best_model, X_test, y_test, 150)
+
+    # 6. 计算综合性能指标
+    composite_score = calculate_composite_score({
+        'best_score': grid_search.best_score_,
+        'test_balanced_accuracy': test_balanced_accuracy,
+        'recent_30_accuracy': recent_30_accuracy,
+        'recent_150_accuracy': recent_150_accuracy
+    })
+
+    # 7. 计算模型权重
+    weight = max(0.5, composite_score * 2)  # 确保权重至少为0.5
+
+    # 8. 打印模型评估结果
+    print(f"\n{model_name} 模型的最佳参数组合：")
+    print(grid_search.best_params_)
+    print(f"\n{model_name} 模型的测试集表现：")
+    print(f"平衡准确率: {test_balanced_accuracy:.2%}")
+    print(f"综合评分: {composite_score:.2%}")
+    print(f"分配权重: {weight:.2f}")
+
+    target_names = [str(c) for c in np.unique(y_train)]
+    print(classification_report(y_test, y_pred, target_names=target_names))
+
+    # 9. 分析特征重要性
+    try:
+        analyze_feature_importance(best_model, X_train, model_name, feature_names)
+    except Exception as e:
+        print(f"分析特征重要性时出错: {str(e)}")
+
+    print(f"\n{model_name}模型最近30场平衡准确率: {recent_30_accuracy:.2%}")
+    print(f"\n{model_name}模型最近150场平衡准确率: {recent_150_accuracy:.2%}")
+
+    # 10. 返回评估结果
+    model_result = {
+        'best_estimator': best_model,
+        'best_params': grid_search.best_params_,
+        'best_score': grid_search.best_score_,
+        'test_balanced_accuracy': test_balanced_accuracy,
+        'recent_30_accuracy': recent_30_accuracy,
+        'recent_150_accuracy': recent_150_accuracy,
+        'composite_score': composite_score,
+        'selected_features': feature_names,
+        'weight': weight
+    }
+
+    return model_result, (model_name, best_model), X_test
+
+
+def _create_ensemble_model(ensemble_type, estimators, weights, X_train, y_train, X_test, y_test):
+    """
+    创建和评估集成模型
+
+    Args:
+        ensemble_type: 集成类型，'voting'或'stacking'
+        estimators: 基础模型列表
+        weights: 模型权重列表
+        X_train: 训练数据
+        y_train: 训练标签
+        X_test: 测试数据
+        y_test: 测试标签
+
+    Returns:
+        集成模型评估结果字典
+    """
+    if ensemble_type == 'voting':
+        print("\n创建优化的投票集成模型...")
+        print(f"使用的模型权重: {weights}")
+
+        # 创建投票集成模型
+        ensemble = VotingClassifier(
+            estimators=estimators,
+            voting='soft',  # 使用软投票，考虑预测概率
+            weights=weights  # 使用基于性能的权重
+        )
+    else:  # stacking
+        print("\n创建堆叠集成模型...")
+        from sklearn.ensemble import StackingClassifier
+        from sklearn.linear_model import LogisticRegression
+
+        # 使用逻辑回归作为元分类器
+        meta_classifier = LogisticRegression(max_iter=1000, class_weight='balanced')
+
+        # 创建堆叠集成模型
+        ensemble = StackingClassifier(
+            estimators=estimators,
+            final_estimator=meta_classifier,
+            cv=3,  # 使用3折交叉验证
+            stack_method='predict_proba',  # 使用概率预测
+            passthrough=False  # 不传递原始特征
+        )
+
+    # 训练集成模型
+    print(f"\n训练{ensemble_type}集成模型...")
+    ensemble.fit(X_train, y_train)
+
+    # 评估集成模型
+    y_pred = ensemble.predict(X_test)
+    test_balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+
+    # 计算最近N场的准确率
+    recent_30_accuracy = get_recent_n_accuracy(ensemble, X_test, y_test, 30)
+    recent_150_accuracy = get_recent_n_accuracy(ensemble, X_test, y_test, 150)
+
+    # 计算综合评分
+    composite_score = calculate_composite_score({
+        'best_score': test_balanced_accuracy,  # 使用测试集准确率作为交叉验证得分
+        'test_balanced_accuracy': test_balanced_accuracy,
+        'recent_30_accuracy': recent_30_accuracy,
+        'recent_150_accuracy': recent_150_accuracy
+    })
+
+    # 打印评估结果
+    print(f"\n{ensemble_type}集成模型的测试集表现：")
+    print(f"平衡准确率: {test_balanced_accuracy:.2%}")
+    print(f"综合评分: {composite_score:.2%}")
+
+    target_names = [str(c) for c in np.unique(y_test)]
+    print(classification_report(y_test, y_pred, target_names=target_names))
+    print(f"\n{ensemble_type}集成模型最近30场平衡准确率: {recent_30_accuracy:.2%}")
+    print(f"\n{ensemble_type}集成模型最近150场平衡准确率: {recent_150_accuracy:.2%}")
+
+    # 返回评估结果
+    ensemble_result = {
+        'best_estimator': ensemble,
+        'best_params': {'weights': weights} if ensemble_type == 'voting' else None,
+        'best_score': test_balanced_accuracy,
+        'test_balanced_accuracy': test_balanced_accuracy,
+        'recent_30_accuracy': recent_30_accuracy,
+        'recent_150_accuracy': recent_150_accuracy,
+        'composite_score': composite_score
+    }
+
+    return ensemble_result
+
+
 def train_and_evaluate_models(X_train, y_train, X_test, y_test, param_grids, models, feature_names=None):
+    """
+    训练和评估多个模型，包括基础模型和集成模型
+
+    Args:
+        X_train: 训练数据
+        y_train: 训练标签
+        X_test: 测试数据
+        y_test: 测试标签
+        param_grids: 参数网格字典
+        models: 模型字典
+        feature_names: 特征名称列表，默认为None
+
+    Returns:
+        所有模型的评估结果字典
+    """
+    # 初始化结果存储
     best_models = {}
     estimators = []  # 用于存储所有训练好的模型
     model_weights = []  # 用于存储模型权重
-    model_performances = {}  # 用于存储模型性能指标
 
     # 转换数据类型为float32以减少内存使用
     X_train_32 = X_train.astype(np.float32)
     X_test_32 = X_test.astype(np.float32)
 
-    # 特征选择 - 为不同模型选择不同的特征子集，增加多样性
-    from sklearn.feature_selection import SelectFromModel
-    feature_subsets = {}
-
     # 第一阶段：训练和评估基础模型
     for model_name, model in models.items():
-        print(f"\n正在调参 {model_name} ...")
-        grid_search = GridSearchCV(
-            estimator=model,
-            param_grid=param_grids[model_name],
-            cv=TimeSeriesSplit(n_splits=3),
-            scoring='balanced_accuracy',
-            n_jobs=2,
-            verbose=2
+        # 训练和评估单个模型
+        model_result, estimator, _ = _train_and_evaluate_base_model(
+            model, model_name, param_grids[model_name],
+            X_train_32, y_train, X_test_32, y_test, feature_names
         )
 
-        # 如果是树模型，尝试使用特征选择
-        if model_name in ['XGBoost', 'LightGBM', 'RandomForest']:
-            # 先训练一个简单模型用于特征选择
-            temp_model = models[model_name]
-            temp_model.fit(X_train_32, y_train)
+        # 存储模型结果
+        best_models[model_name] = model_result
+        estimators.append(estimator)
+        model_weights.append(model_result['weight'])
 
-            # 基于特征重要性选择特征
-            selector = SelectFromModel(temp_model, threshold='mean', prefit=True)
-            feature_mask = selector.get_support()
-            selected_features = [feature for feature, selected in zip(feature_names, feature_mask) if selected]
-
-            # 保存特征子集
-            feature_subsets[model_name] = selected_features
-            print(f"为 {model_name} 选择了 {len(selected_features)} 个特征")
-
-            # 使用选定的特征子集
-            X_train_selected = selector.transform(X_train_32)
-            X_test_selected = selector.transform(X_test_32)
-        else:
-            # 对于非树模型，使用全部特征
-            X_train_selected = X_train_32
-            X_test_selected = X_test_32
-
-        # 训练模型
-        grid_search.fit(X_train_selected, y_train)
-
-        # 模型评估
-        y_pred = grid_search.best_estimator_.predict(X_test_selected)
-        test_balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
-
-        # 计算最近N场的准确率
-        recent_30_accuracy = get_recent_n_accuracy(
-            grid_search.best_estimator_,
-            X_test_selected,
-            y_test,
-            30
-        )
-
-        recent_150_accuracy = get_recent_n_accuracy(
-            grid_search.best_estimator_,
-            X_test_selected,
-            y_test,
-            150
-        )
-
-        # 计算综合性能指标
-        composite_score = calculate_composite_score({
-            'best_score': grid_search.best_score_,
-            'test_balanced_accuracy': test_balanced_accuracy,
-            'recent_30_accuracy': recent_30_accuracy,
-            'recent_150_accuracy': recent_150_accuracy
-        })
-
-        # 存储模型性能
-        model_performances[model_name] = composite_score
-
-        # 存储所有评估指标
-        best_models[model_name] = {
-            'best_estimator': grid_search.best_estimator_,
-            'best_params': grid_search.best_params_,
-            'best_score': grid_search.best_score_,  # 交叉验证得分
-            'test_balanced_accuracy': test_balanced_accuracy,  # 测试集平衡准确率
-            'recent_30_accuracy': recent_30_accuracy,  # 最近30场准确率
-            'recent_150_accuracy': recent_150_accuracy,  # 最近150场准确率
-            'composite_score': composite_score,  # 综合评分
-            'selected_features': feature_subsets.get(model_name, feature_names)  # 选择的特征
-        }
-
-        # 将训练好的模型添加到estimators列表
-        estimators.append((model_name, grid_search.best_estimator_))
-
-        # 基于综合性能计算权重 (将性能指标转换为权重)
-        weight = max(0.5, composite_score * 2)  # 确保权重至少为0.5
-        model_weights.append(weight)
-
-        print(f"\n{model_name} 模型的最佳参数组合：")
-        print(grid_search.best_params_)
-        print(f"\n{model_name} 模型的测试集表现：")
-        print(f"平衡准确率: {test_balanced_accuracy:.2%}")
-        print(f"综合评分: {composite_score:.2%}")
-        print(f"分配权重: {weight:.2f}")
-        target_names = np.unique(y_train)
-        target_names = [str(c) for c in np.unique(target_names)]
-        print(classification_report(y_test, y_pred, target_names=target_names))
-
-        # 分析特征重要性
-        try:
-            analyze_feature_importance(grid_search.best_estimator_, X_train_selected, model_name,
-                                       feature_subsets.get(model_name, feature_names))
-        except Exception as e:
-            print(f"分析特征重要性时出错: {str(e)}")
-
-        print(f"\n{model_name}模型最近30场平衡准确率: {recent_30_accuracy:.2%}")
-        print(f"\n{model_name}模型最近150场平衡准确率: {recent_150_accuracy:.2%}")
-
-    # 第二阶段：创建和优化投票集成模型
-    print("\n创建优化的投票集成模型...")
-    print(f"使用的模型权重: {model_weights}")
-
-    # 创建投票集成模型 - 使用基于性能的权重
-    voting_clf = VotingClassifier(
-        estimators=estimators,
-        voting='soft',  # 使用软投票，考虑预测概率
-        weights=model_weights  # 使用基于性能的权重
+    # 第二阶段：创建和评估投票集成模型
+    voting_result = _create_ensemble_model(
+        'voting', estimators, model_weights,
+        X_train_32, y_train, X_test_32, y_test
     )
+    best_models['Voting'] = voting_result
 
-    # 训练投票集成模型
-    print("\n训练投票集成模型...")
-    voting_clf.fit(X_train_32, y_train)
-
-    # 评估投票集成模型
-    y_pred_voting = voting_clf.predict(X_test_32)
-    test_balanced_accuracy_voting = balanced_accuracy_score(y_test, y_pred_voting)
-
-    # 计算投票集成模型的最近N场的准确率
-    recent_30_accuracy_voting = get_recent_n_accuracy(voting_clf, X_test_32, y_test, 30)
-    recent_150_accuracy_voting = get_recent_n_accuracy(voting_clf, X_test_32, y_test, 150)
-
-    # 计算投票模型的综合评分
-    voting_composite_score = calculate_composite_score({
-        'best_score': test_balanced_accuracy_voting,  # 使用测试集准确率作为交叉验证得分
-        'test_balanced_accuracy': test_balanced_accuracy_voting,
-        'recent_30_accuracy': recent_30_accuracy_voting,
-        'recent_150_accuracy': recent_150_accuracy_voting
-    })
-
-    print("\n投票集成模型的测试集表现：")
-    print(f"平衡准确率: {test_balanced_accuracy_voting:.2%}")
-    print(f"综合评分: {voting_composite_score:.2%}")
-    print(classification_report(y_test, y_pred_voting, target_names=target_names))
-    print(f"\n投票集成模型最近30场平衡准确率: {recent_30_accuracy_voting:.2%}")
-    print(f"\n投票集成模型最近150场平衡准确率: {recent_150_accuracy_voting:.2%}")
-
-    # 第三阶段：创建和优化堆叠集成模型
-    from sklearn.ensemble import StackingClassifier
-    from sklearn.linear_model import LogisticRegression
-
-    print("\n创建堆叠集成模型...")
-    # 使用逻辑回归作为元分类器
-    meta_classifier = LogisticRegression(max_iter=1000, class_weight='balanced')
-
-    # 创建堆叠集成模型
-    stacking_clf = StackingClassifier(
-        estimators=estimators,
-        final_estimator=meta_classifier,
-        cv=3,  # 使用3折交叉验证
-        stack_method='predict_proba',  # 使用概率预测
-        passthrough=False  # 不传递原始特征
+    # 第三阶段：创建和评估堆叠集成模型
+    stacking_result = _create_ensemble_model(
+        'stacking', estimators, model_weights,
+        X_train_32, y_train, X_test_32, y_test
     )
+    best_models['Stacking'] = stacking_result
 
-    # 训练堆叠集成模型
-    print("\n训练堆叠集成模型...")
-    stacking_clf.fit(X_train_32, y_train)
-
-    # 评估堆叠集成模型
-    y_pred_stacking = stacking_clf.predict(X_test_32)
-    test_balanced_accuracy_stacking = balanced_accuracy_score(y_test, y_pred_stacking)
-
-    # 计算堆叠集成模型的最近N场的准确率
-    recent_30_accuracy_stacking = get_recent_n_accuracy(stacking_clf, X_test_32, y_test, 30)
-    recent_150_accuracy_stacking = get_recent_n_accuracy(stacking_clf, X_test_32, y_test, 150)
-
-    # 计算堆叠模型的综合评分
-    stacking_composite_score = calculate_composite_score({
-        'best_score': test_balanced_accuracy_stacking,
-        'test_balanced_accuracy': test_balanced_accuracy_stacking,
-        'recent_30_accuracy': recent_30_accuracy_stacking,
-        'recent_150_accuracy': recent_150_accuracy_stacking
-    })
-
-    print("\n堆叠集成模型的测试集表现：")
-    print(f"平衡准确率: {test_balanced_accuracy_stacking:.2%}")
-    print(f"综合评分: {stacking_composite_score:.2%}")
-    print(classification_report(y_test, y_pred_stacking, target_names=target_names))
-    print(f"\n堆叠集成模型最近30场平衡准确率: {recent_30_accuracy_stacking:.2%}")
-    print(f"\n堆叠集成模型最近150场平衡准确率: {recent_150_accuracy_stacking:.2%}")
-
-    # 添加投票集成模型到best_models
-    best_models['Voting'] = {
-        'best_estimator': voting_clf,
-        'best_params': {'weights': model_weights},
-        'best_score': test_balanced_accuracy_voting,
-        'test_balanced_accuracy': test_balanced_accuracy_voting,
-        'recent_30_accuracy': recent_30_accuracy_voting,
-        'recent_150_accuracy': recent_150_accuracy_voting,
-        'composite_score': voting_composite_score
-    }
-
-    # 添加堆叠集成模型到best_models
-    best_models['Stacking'] = {
-        'best_estimator': stacking_clf,
-        'best_params': None,
-        'best_score': test_balanced_accuracy_stacking,
-        'test_balanced_accuracy': test_balanced_accuracy_stacking,
-        'recent_30_accuracy': recent_30_accuracy_stacking,
-        'recent_150_accuracy': recent_150_accuracy_stacking,
-        'composite_score': stacking_composite_score
-    }
+    # 将每个模型选择的特征写入CSV文件
+    save_selected_features_to_csv(best_models)
 
     return best_models
 
@@ -997,6 +1204,53 @@ def plot_feature_importance(models, feature_names):
 
 
 # 主程序
+def save_selected_features_to_csv(best_models):
+    """
+    将每个模型选择的特征写入CSV文件
+
+    Args:
+        best_models: 包含所有模型结果的字典
+    """
+    import pandas as pd
+
+    # 只处理树模型（XGBoost、LightGBM、RandomForest）
+    tree_models = ['XGBoost', 'LightGBM', 'RandomForest']
+
+    # 创建一个字典，用于存储每个模型的特征选择情况
+    model_features = {}
+    all_data = []
+    # 声明一个map
+    map = {
+
+    }
+    # 收集每个模型的选定特征
+    for model_name in tree_models:
+        if model_name in best_models and 'selected_features' in best_models[model_name]:
+            selected_features = best_models[model_name]['selected_features']
+            model_features[model_name] = selected_features
+            print(f"\n{model_name} 选择了 {len(selected_features)} 个特征")
+            # selected_features 转成一大个字符串
+            # 确保所有元素都是字符串类型
+            features_str = ','.join([str(feature) for feature in selected_features])
+            map[model_name] = features_str
+
+    #map 转成csv 存到本地
+    # 将字典转换为 DataFrame
+    if map:
+        # 创建一个列表来存储数据
+        data = []
+        for model_name, features_str in map.items():
+            data.append({'model_name': model_name, 'selected_features': features_str})
+
+        # 使用列表创建DataFrame
+        df = pd.DataFrame(data)
+
+        # 将 DataFrame 保存为 CSV 文件
+        df.to_csv('model_selected_features.csv', index=False)
+        print(f"\n已将模型特征映射(map)保存到 model_selected_features.csv")
+    else:
+        print("\n没有模型特征映射数据要保存")
+
 def get_target_names(prediction_type):
     """根据预测类型生成相应的标签"""
     if prediction_type == 'win_draw_loss':

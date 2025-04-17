@@ -76,7 +76,7 @@ def load_europe_odds_not_handicap_data():
       and first_win_sp >= 1.12
       and first_lose_sp >= 1.12
     and bet_time <= '2025-04-11'
-    and bet_time >= '2025-02-20'
+    and bet_time >= '2024-12-20'
       and bookmaker_id in (
         3,
             11,99,63,75,64,39,84,91,68,79,22,32,6,24,126,82,161,18,74,57,192,93,72,47,25,80,17,127,9,106,48,115,42,121,130,70,60,1000,
@@ -130,6 +130,12 @@ def fetch_new_matches():
       AND first_win_sp >= 1.12
       AND first_lose_sp >= 1.12
     AND bet_simple_day >= CURDATE() - Interval 5 day
+     and bookmaker_id in (
+        3,
+            11,99,63,75,64,39,84,91,68,79,22,32,6,24,126,82,161,18,74,57,192,93,72,47,25,80,17,127,9,106,48,115,42,121,130,70,60,1000,
+    110
+
+        )
       """
     raw_df = pd.read_sql(query, engine)
 

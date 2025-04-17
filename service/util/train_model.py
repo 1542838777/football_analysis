@@ -13,7 +13,7 @@ from service.util.spfTest import (
     train_and_evaluate_models, compute_class_weights, plot_feature_importance
 )
 
-def train_and_save_model(model_dir='models', score_weights=None):
+def train_and_save_model(model_dir='D:\\lqs\\codeAbout\\py\\guessingFootball\\models', score_weights=None):
     """
     训练模型并保存到指定目录
 
@@ -75,6 +75,15 @@ def train_and_save_model(model_dir='models', score_weights=None):
     best_model = best_models[best_model_name]['best_estimator']
 
     print(f"\n最佳模型: {best_model_name}")
+    #保存最佳模型名
+    # 将标量值包裹在列表中，这样pandas可以正确创建DataFrame
+    df = pd.DataFrame({'best_model_name':[best_model_name]})
+    df.to_csv('best_model_name.csv', index=False)
+
+    # 另一种更简单的方法，直接将模型名称写入文本文件
+    with open('best_model_name.txt', 'w') as f:
+        f.write(best_model_name)
+
     print(f"综合评分: {model_scores[best_model_name]:.2%}")
     print(f"交叉验证得分: {best_models[best_model_name]['best_score']:.2%}")
     print(f"测试集平衡准确率: {best_models[best_model_name]['test_balanced_accuracy']:.2%}")

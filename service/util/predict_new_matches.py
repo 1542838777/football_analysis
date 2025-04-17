@@ -15,6 +15,53 @@ from service.util.spfTest import create_features, getSelf, preprocess_data, get_
 from service.spf.initData.data.mysql_data import load_europe_odds_not_handicap_data
 
 
+def getSelf_feature_names():
+    """
+    读取最佳模型名称并获取该模型选择的特征
+
+    Returns:
+        list: 最佳模型选择的特征列表
+    """
+    import pandas as pd
+    import os
+
+    # 首先尝试从文本文件读取最佳模型名称
+    best_model_name = None
+    if os.path.exists('best_model_name.txt'):
+        try:
+            with open('best_model_name.txt', 'r') as f:
+                best_model_name = f.read().strip()
+            print(f"从文本文件读取到最佳模型名称: {best_model_name}")
+        except Exception as e:
+            print(f"读取best_model_name.txt失败: {str(e)}")
+
+    # 如果无法获取最佳模型名称，返回空列表
+    if best_model_name is None:
+        print("无法获取最佳模型名称")
+        raise ValueError("无法获取最佳模型名称")
+
+    # 读取模型特征映射文件
+    selected_features = []
+    if os.path.exists('model_selected_features.csv'):
+        try:
+            df = pd.read_csv('model_selected_features.csv')
+            # 查找匹配最佳模型名称的行
+            model_rows = df[df['model_name'] == best_model_name]
+
+            if not model_rows.empty:
+                # 获取特征字符串并分割为列表
+                features_str = model_rows['selected_features'].iloc[0]
+                selected_features = features_str.split(',')
+                print(f"为模型 {best_model_name} 找到 {len(selected_features)} 个选定特征")
+            else:
+                 raise ValueError("无法找到匹配最佳模型名称的行")
+        except Exception as e:
+            print(f"读取model_selected_features.csv失败: {str(e)}")
+    else:
+        print("model_selected_features.csv文件不存在")
+
+    return selected_features
+
 
 def load_model(model_path):
     """
@@ -44,14 +91,23 @@ def preprocess_new_data(new_data, feature_names, scaler):
 
     return pd.DataFrame(features_scaled, columns=common_cols, index=features_df.index)
 
+
+
+
+
 def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', feature_names_path='feature_names.pkl'):
     """
     主函数：预测新比赛结果
     """
     # 加载模型和相关组件
     model = load_model(model_path)
-    scaler = joblib.load(scaler_path)
-    feature_names = joblib.load(feature_names_path)
+    try:
+        scaler = joblib.load(scaler_path)
+        print(f"成功加载scaler: {scaler_path}")
+        print(f"成功加载feature_names: {feature_names_path}")
+    except Exception as e:
+        print(f"加载scaler或feature_names失败: {str(e)}")
+        return
 
     if model is None:
         print("无法加载模型，预测终止")
@@ -93,23 +149,20 @@ def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', f
 
         # 处理新数据
         new_match_level_df = create_features(match_level_df, useless_cols)
-        #
-        # 确保特征列与训练时一致
-        X_new = new_match_level_df[feature_names]
-
-        # 标准化
+        # 确保列顺序与训练时一致
+        # 标准化 - 使用加载的scaler
         X_new_scaled = scaler.transform(new_match_level_df)
 
         # 预测
-        predictions = model.predict(X_new)
-        probabilities = model.predict_proba(X_new)
+        predictions = model.predict(X_new_scaled)
+        probabilities = model.predict_proba(X_new_scaled)
 
         # 获取目标名称
         target_names = get_target_names(guess_type)
 
         # 创建结果DataFrame
         results_df = pd.DataFrame({
-            'match_id': new_match_level_df.index,
+            'match_id': match_level_df.index,
             'prediction': [target_names[p] for p in predictions]
         })
 
