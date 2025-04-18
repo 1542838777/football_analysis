@@ -13,9 +13,9 @@ from service.util.spfTest import (
     train_and_evaluate_models, compute_class_weights, plot_feature_importance
 )
 
-def train_and_save_model(model_dir='D:\\lqs\\codeAbout\\py\\guessingFootball\\models', score_weights=None):
+def train_and_save_model(model_dir='D:\\lqs\\codeAbout\\py\\guessingFootball\\service\\latest\\models', score_weights=None):
     """
-    训练模型并保存到指定目录
+        训练模型并保存到指定目录
 
     参数:
         model_dir (str): 模型保存目录

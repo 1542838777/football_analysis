@@ -54,7 +54,7 @@ def getSelf_feature_names():
                 selected_features = features_str.split(',')
                 print(f"为模型 {best_model_name} 找到 {len(selected_features)} 个选定特征")
             else:
-                 raise ValueError("无法找到匹配最佳模型名称的行")
+                raise ValueError("无法找到匹配最佳模型名称的行")
         except Exception as e:
             print(f"读取model_selected_features.csv失败: {str(e)}")
     else:
@@ -75,6 +75,7 @@ def load_model(model_path):
         print(f"加载模型失败: {str(e)}")
         return None
 
+
 def preprocess_new_data(new_data, feature_names, scaler):
     """
     对新数据进行预处理
@@ -90,9 +91,6 @@ def preprocess_new_data(new_data, feature_names, scaler):
     features_scaled = scaler.transform(features_df)
 
     return pd.DataFrame(features_scaled, columns=common_cols, index=features_df.index)
-
-
-
 
 
 def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', feature_names_path='feature_names.pkl'):
@@ -115,14 +113,14 @@ def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', f
 
     # 获取新比赛数据
     try:
-        #导入 mysql_data.py 里面的fetch_new_matches
+        # 导入 mysql_data.py 里面的fetch_new_matches
         from service.spf.initData.data.mysql_data import fetch_new_matches
         new_matches = fetch_new_matches()
         if new_matches.empty:
             print("没有找到新的比赛数据")
             return
-
-        print(f"获取到 {len(new_matches)} 场新比赛")
+        #new_matches 按match_id分组 ，统计长度
+        print(f"获取到 {len(new_matches.groupby('match_id'))} 场新比赛")
     except Exception as e:
         print(f"获取新比赛数据失败: {str(e)}")
         # 如果无法从数据库获取，可以尝试从文件加载
@@ -172,11 +170,12 @@ def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', f
 
         # 如果有主客队名称，添加到结果中
         if 'host_name' in new_matches.columns and 'guest_name' in new_matches.columns:
-            match_info = new_matches.groupby('match_id').first()[['host_name', 'guest_name','order_queue']]
+            match_info = new_matches.groupby('match_id').first()[['host_name', 'guest_name', 'order_queue']]
             results_df = results_df.merge(match_info, left_on='match_id', right_index=True, how='left')
 
             # 重新排列列顺序
-            cols = ['match_id', 'host_name', 'guest_name','order_queue', 'prediction'] + [c for c in results_df.columns if c.startswith('prob_')]
+            cols = ['match_id', 'host_name', 'guest_name', 'order_queue', 'prediction'] + [c for c in results_df.columns
+                                                                                           if c.startswith('prob_')]
             results_df = results_df[cols]
 
         # 输出结果
@@ -192,6 +191,12 @@ def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', f
 
         # 保存结果
         results_df.to_csv('prediction_results.csv', index=False)
+        from service.spf.initData.data.mysql_data import query_result
+        query_result_df = query_result()
+        #query_result_df 与 results_df 按match_id合并
+        results_df = pd.merge(results_df, query_result_df, on='match_id', how='left')
+        #results_df 按prediction，result 排序
+        results_df = results_df.sort_values(['prediction', 'result'], ascending=[True, True])
         print("\n预测结果已保存到 prediction_results.csv")
 
         return results_df
@@ -202,6 +207,7 @@ def predict_new_matches(model_path='best_model.pkl', scaler_path='scaler.pkl', f
         traceback.print_exc()
         return None
 
+
 def save_trained_model(model, scaler, feature_names, prefix=''):
     """
     保存训练好的模型和相关组件，供预测使用
@@ -211,10 +217,14 @@ def save_trained_model(model, scaler, feature_names, prefix=''):
     joblib.dump(feature_names, f'{prefix}feature_names.pkl')
     print(f"模型和相关组件已保存，可用于预测新数据")
 
+
 if __name__ == '__main__':
-    # 如果已有训练好的模型，直接预测
-    if os.path.exists('best_model.pkl') and os.path.exists('scaler.pkl') and os.path.exists('feature_names.pkl'):
-        predict_new_matches()
+    # 在D:\lqs\codeAbout\py\guessingFootball\service\latest\models目录 寻找 如果已有训练好的模型，直接预测
+    parent_path = 'D:\lqs\codeAbout\py\guessingFootball\service\latest\models'
+    if os.path.exists(parent_path + '\\best_model.pkl') and os.path.exists(
+            parent_path + '\\scaler.pkl') and os.path.exists(parent_path + '\\feature_names.pkl'):
+        predict_new_matches(model_path=parent_path + '\\best_model.pkl', scaler_path=parent_path + '\\scaler.pkl',
+                            feature_names_path=parent_path + '\\feature_names.pkl')
     else:
         # 否则，先训练模型
         print("未找到训练好的模型，请先运行 spfTest.py 训练模型")
@@ -237,7 +247,8 @@ if __name__ == '__main__':
         param_grids = get_param_grids()
 
         # 训练并评估模型
-        best_models = train_and_evaluate_models(X_train_scaled, y_train, X_test_scaled, y_test, param_grids, models, feature_names)
+        best_models = train_and_evaluate_models(X_train_scaled, y_train, X_test_scaled, y_test, param_grids, models,
+                                                feature_names)
 
         # 选择最佳模型
         best_model_name = max(best_models, key=lambda k: best_models[k]['best_score'])

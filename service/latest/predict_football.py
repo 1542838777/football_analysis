@@ -1,5 +1,4 @@
 import os
-import sys
 import argparse
 
 def main():
@@ -16,13 +15,13 @@ def main():
 
     if args.train:
         print("开始训练模型...")
-        from service.util.train_model import train_and_save_model
+        from service.latest.train_model import train_and_save_model
         train_and_save_model(args.model_dir)
         print("模型训练完成！")
 
     if args.predict:
         print("开始预测新比赛...")
-        from service.util.predict_new_matches import predict_new_matches
+        from service.latest.predict_new_matches import predict_new_matches
 
         # 检查模型文件是否存在
         model_path = os.path.join(args.model_dir, 'best_model.pkl')

@@ -1,9 +1,8 @@
 import os
-import sys
 import pandas as pd
 import numpy as np
 import joblib
-from sklearn.preprocessing import StandardScaler
+
 
 # Mock the database connection and fetch_new_matches function
 def mock_fetch_new_matches():
@@ -105,7 +104,6 @@ class MockScaler:
         return X
 
 # Patch the necessary functions
-import service.util.predict_new_matches as predict_module
 import service.util.spfTest as spfTest_module
 import sys
 
@@ -133,19 +131,19 @@ mock_feature_names = ['first_win_sp_mean', 'first_draw_sp_mean', 'first_lose_sp_
                      'first_win_sp_std', 'first_draw_sp_std', 'first_lose_sp_std']
 
 # Save mock model files
-os.makedirs('models', exist_ok=True)
-joblib.dump(mock_model, 'models/best_model.pkl')
-joblib.dump(mock_scaler, 'models/scaler.pkl')
-joblib.dump(mock_feature_names, 'models/feature_names.pkl')
+os.makedirs('service/latest/models', exist_ok=True)
+joblib.dump(mock_model, 'service/latest/models/best_model.pkl')
+joblib.dump(mock_scaler, 'service/latest/models/scaler.pkl')
+joblib.dump(mock_feature_names, 'service/latest/models/feature_names.pkl')
 
 # Test the predict_new_matches function
-from service.util.predict_new_matches import predict_new_matches
+from service.latest.predict_new_matches import predict_new_matches
 
 print("Testing predict_new_matches function...")
 result = predict_new_matches(
-    model_path='models/best_model.pkl',
-    scaler_path='models/scaler.pkl',
-    feature_names_path='models/feature_names.pkl'
+    model_path='service/latest/models/best_model.pkl',
+    scaler_path='service/latest/models/scaler.pkl',
+    feature_names_path='service/latest/models/feature_names.pkl'
 )
 
 print("\nTest completed!")

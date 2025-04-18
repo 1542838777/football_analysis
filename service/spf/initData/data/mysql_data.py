@@ -75,8 +75,8 @@ def load_europe_odds_not_handicap_data():
     WHERE o.first_handicap = 0
       and first_win_sp >= 1.12
       and first_lose_sp >= 1.12
-    and bet_time <= '2025-04-11'
-    and bet_time >= '2024-12-20'
+    and bet_time <=  CURDATE()  
+    and bet_time >= '2023-04-11'
       and bookmaker_id in (
         3,
             11,99,63,75,64,39,84,91,68,79,22,32,6,24,126,82,161,18,74,57,192,93,72,47,25,80,17,127,9,106,48,115,42,121,130,70,60,1000,
@@ -97,6 +97,7 @@ def load_europe_odds_not_handicap_data():
     # 按 match_time, match_id 排序
     df = df.sort_values(['bet_time', 'match_id'])
     return df
+
 
 # 提取新的比赛
 def fetch_new_matches():
@@ -147,3 +148,23 @@ def fetch_new_matches():
     df = raw_df[raw_df['bookmaker_id'].isin(valid_agencies)]
     # 按 match_time, match_id 排序
     return df
+
+
+def query_result():
+    sql = """
+ SELECT 
+    match_id,
+    CASE 
+        WHEN nwdl_result = 0 THEN '负'
+        WHEN nwdl_result = 1 THEN '平'
+        WHEN nwdl_result = 3 THEN '胜'
+        ELSE '未知'  -- 处理其他可能的值
+    END AS result,
+    order_queue
+FROM 
+    match_result r
+WHERE 
+    r.bet_time >= CURDATE() - INTERVAL 5 DAY;
+    """
+    raw_df  = pd.read_sql(sql, engine)
+    return raw_df

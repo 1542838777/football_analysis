@@ -440,13 +440,13 @@ def create_match_level_future_by_match_group(df):
     match_level_df = df.groupby('match_id', sort=False, group_keys=False).apply(_process_single_match,agency_pairs)
 
     # 保持原始顺序
-    match_level_df = match_level_df.reindex(df['match_id'].unique())
+    match_level_df = match_level_df.reindex(df['match_id'].unique())#193
 
     # 分歧排名，基于 first_win_sp_std first_draw_sp_std first_lose_sp_std
     # match_level_df的league_id强转为int类型
     match_level_df = add_institution_discrepancy_colum(match_level_df)
 
-    return match_level_df
+    return match_level_df #207
 
 
 def get_match_level_df(guess_type, unless_colum):
